@@ -1,0 +1,246 @@
+// Toolbox: "Basic I/O", "Sensors", "Sound" and "IR Remote" (custom hardware
+// blocks, spec section 2), a minimal "Serial" debug helper (not in the spec,
+// see blocks/serial.js), plus the standard Blockly "Control flow",
+// "Operators" (logic + math + text, grouped together per spec) and
+// "Variables" categories. Motor blocks are intentionally not included yet
+// (built separately via Blockly's custom block builder).
+//
+// Category chip colours come from CATEGORY_COLOURS (theme.js) -- the same
+// values the block styles themselves are built from -- so the toolbox
+// sidebar and the blocks it produces are always in sync.
+import { CATEGORY_COLOURS } from './theme.js';
+
+export const toolbox = {
+  kind: 'categoryToolbox',
+  contents: [
+    {
+      kind: 'category',
+      name: 'Basic I/O',
+      colour: CATEGORY_COLOURS.io,
+      contents: [
+        {
+          kind: 'block',
+          type: 'io_digital_write',
+          inputs: { PIN: { shadow: { type: 'math_number', fields: { NUM: 13 } } } },
+        },
+        {
+          kind: 'block',
+          type: 'io_digital_read',
+          inputs: { PIN: { shadow: { type: 'math_number', fields: { NUM: 2 } } } },
+        },
+        {
+          kind: 'block',
+          type: 'io_analog_read',
+          inputs: { PIN: { shadow: { type: 'math_number', fields: { NUM: 0 } } } },
+        },
+        {
+          kind: 'block',
+          type: 'io_pwm_write',
+          inputs: {
+            PIN: { shadow: { type: 'math_number', fields: { NUM: 9 } } },
+            VALUE: { shadow: { type: 'math_number', fields: { NUM: 128 } } },
+          },
+        },
+        {
+          kind: 'block',
+          type: 'io_servo_write',
+          inputs: {
+            PIN: { shadow: { type: 'math_number', fields: { NUM: 9 } } },
+            ANGLE: { shadow: { type: 'math_number', fields: { NUM: 90 } } },
+          },
+        },
+        {
+          kind: 'block',
+          type: 'io_wait',
+          inputs: { TIME: { shadow: { type: 'math_number', fields: { NUM: 1 } } } },
+        },
+      ],
+    },
+    {
+      kind: 'category',
+      name: 'Sensors',
+      colour: CATEGORY_COLOURS.sensors,
+      contents: [
+        {
+          kind: 'block',
+          type: 'sensor_pulse_read',
+          inputs: {
+            PIN: { shadow: { type: 'math_number', fields: { NUM: 2 } } },
+            TIMEOUT: { shadow: { type: 'math_number', fields: { NUM: 1000000 } } },
+          },
+        },
+        {
+          kind: 'block',
+          type: 'sensor_read_distance',
+          inputs: {
+            TRIG: { shadow: { type: 'math_number', fields: { NUM: 7 } } },
+            ECHO: { shadow: { type: 'math_number', fields: { NUM: 6 } } },
+          },
+        },
+      ],
+    },
+    {
+      kind: 'category',
+      name: 'Sound',
+      colour: CATEGORY_COLOURS.sound,
+      contents: [
+        {
+          kind: 'block',
+          type: 'sound_play_note',
+          inputs: {
+            PIN: { shadow: { type: 'math_number', fields: { NUM: 8 } } },
+            BEATS: { shadow: { type: 'math_number', fields: { NUM: 1 } } },
+          },
+        },
+      ],
+    },
+    {
+      kind: 'category',
+      name: 'IR Remote',
+      colour: CATEGORY_COLOURS.ir,
+      contents: [
+        {
+          kind: 'block',
+          type: 'ir_start_receiver',
+          inputs: { PIN: { shadow: { type: 'math_number', fields: { NUM: 2 } } } },
+        },
+        { kind: 'block', type: 'ir_if_received' },
+        { kind: 'block', type: 'ir_get_code' },
+        { kind: 'block', type: 'ir_repeat_received' },
+      ],
+    },
+    {
+      kind: 'category',
+      name: 'Serial',
+      colour: CATEGORY_COLOURS.serial,
+      contents: [{ kind: 'block', type: 'serial_print' }],
+    },
+    {
+      kind: 'category',
+      name: 'Control Flow',
+      colour: CATEGORY_COLOURS.control,
+      contents: [
+        // The required entry point -- comes with a "forever" already
+        // snapped in below it, since hat + forever is the intended starting
+        // scaffold for basically every program (see generators/arduino/core.js).
+        {
+          kind: 'block',
+          type: 'arduino_start',
+          next: { block: { type: 'controls_forever' } },
+        },
+        // Also offered on its own, for use anywhere other than directly
+        // under the hat (nested inside an if, another loop, etc.), where it
+        // means a genuine infinite loop rather than "this is void loop()".
+        { kind: 'block', type: 'controls_forever' },
+        { kind: 'block', type: 'controls_if' },
+        {
+          kind: 'block',
+          type: 'controls_if',
+          extraState: { hasElse: true },
+        },
+        { kind: 'block', type: 'controls_whileUntil' },
+        {
+          kind: 'block',
+          type: 'controls_repeat_ext',
+          inputs: {
+            TIMES: { shadow: { type: 'math_number', fields: { NUM: 10 } } },
+          },
+        },
+        {
+          kind: 'block',
+          type: 'controls_for',
+          inputs: {
+            FROM: { shadow: { type: 'math_number', fields: { NUM: 1 } } },
+            TO: { shadow: { type: 'math_number', fields: { NUM: 10 } } },
+            BY: { shadow: { type: 'math_number', fields: { NUM: 1 } } },
+          },
+        },
+        { kind: 'block', type: 'controls_flow_statements' },
+      ],
+    },
+    {
+      kind: 'category',
+      name: 'Operators',
+      colour: CATEGORY_COLOURS.operators,
+      contents: [
+        {
+          kind: 'block',
+          type: 'logic_compare',
+          inputs: {
+            A: { shadow: { type: 'math_number', fields: { NUM: 0 } } },
+            B: { shadow: { type: 'math_number', fields: { NUM: 0 } } },
+          },
+        },
+        { kind: 'block', type: 'logic_operation' },
+        { kind: 'block', type: 'logic_negate' },
+        { kind: 'block', type: 'logic_boolean' },
+        { kind: 'block', type: 'logic_ternary' },
+        {
+          kind: 'block',
+          type: 'math_arithmetic',
+          inputs: {
+            A: { shadow: { type: 'math_number', fields: { NUM: 1 } } },
+            B: { shadow: { type: 'math_number', fields: { NUM: 1 } } },
+          },
+        },
+        {
+          kind: 'block',
+          type: 'math_single',
+          inputs: { NUM: { shadow: { type: 'math_number', fields: { NUM: 9 } } } },
+        },
+        {
+          kind: 'block',
+          type: 'math_round',
+          inputs: { NUM: { shadow: { type: 'math_number', fields: { NUM: 3.1 } } } },
+        },
+        {
+          kind: 'block',
+          type: 'math_modulo',
+          inputs: {
+            DIVIDEND: { shadow: { type: 'math_number', fields: { NUM: 64 } } },
+            DIVISOR: { shadow: { type: 'math_number', fields: { NUM: 10 } } },
+          },
+        },
+        {
+          kind: 'block',
+          type: 'math_random_int',
+          inputs: {
+            FROM: { shadow: { type: 'math_number', fields: { NUM: 1 } } },
+            TO: { shadow: { type: 'math_number', fields: { NUM: 100 } } },
+          },
+        },
+        { kind: 'block', type: 'text', fields: { TEXT: '' } },
+        { kind: 'block', type: 'text_join' },
+        {
+          kind: 'block',
+          type: 'text_length',
+          inputs: { VALUE: { shadow: { type: 'text', fields: { TEXT: 'abc' } } } },
+        },
+        {
+          kind: 'block',
+          type: 'text_isEmpty',
+          inputs: { VALUE: { shadow: { type: 'text', fields: { TEXT: '' } } } },
+        },
+        {
+          kind: 'block',
+          type: 'text_indexOf',
+          inputs: {
+            VALUE: { shadow: { type: 'text', fields: { TEXT: 'abc' } } },
+            FIND: { shadow: { type: 'text', fields: { TEXT: 'b' } } },
+          },
+        },
+        {
+          kind: 'block',
+          type: 'text_charAt',
+          inputs: { VALUE: { shadow: { type: 'text', fields: { TEXT: 'abc' } } } },
+        },
+      ],
+    },
+    {
+      kind: 'category',
+      name: 'Variables',
+      colour: CATEGORY_COLOURS.variables,
+      custom: 'VARIABLES_WITH_CHANGE',
+    },
+  ],
+};
