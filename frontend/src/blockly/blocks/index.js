@@ -5,6 +5,7 @@ import './sensors.js';
 import './sound.js';
 import './ir.js';
 import './serial.js';
+import './textShadow.js';
 import { recolorStockBlocks } from './recolorStock.js';
 
 // Runs once 'blockly/blocks' (imported before this module, see

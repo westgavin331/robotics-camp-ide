@@ -8,6 +8,11 @@ generator.forBlock['text'] = function (block) {
   return [quote(block.getFieldValue('TEXT')), generator.ORDER_ATOMIC];
 };
 
+// shadow_text (blocks/textShadow.js) is a quote-icon-free stand-in for
+// `text` used only as a default shadow -- same TEXT field, same output, so
+// it generates identically.
+generator.forBlock['shadow_text'] = generator.forBlock['text'];
+
 // String operations (join / letter of / length of / contains) all go
 // through Arduino's String class, since raw char* isn't practical for kids
 // to compose. Any value fed in gets wrapped with String(...) so numbers and

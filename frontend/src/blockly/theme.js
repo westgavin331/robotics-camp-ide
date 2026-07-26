@@ -88,6 +88,7 @@ export const CATEGORY_COLOURS = {
   control: '#FFAB19', // Scratch "Control" orange
   operators: '#40BF4A', // Scratch "Operators" green
   variables: '#EE7D16', // Scratch "Variables" orange-red -- distinct from Control
+  myBlocks: '#FF6680', // Scratch "My Blocks" pink/red
 };
 
 export const scratchTheme = Blockly.Theme.defineTheme('scratch_style', {
@@ -106,6 +107,12 @@ export const scratchTheme = Blockly.Theme.defineTheme('scratch_style', {
     // control-flow/entry-point concept) but with the Scratch hat-block cap
     // shape, so it's still immediately recognisable as the special one.
     camp_hat_blocks: { ...styleFrom(CATEGORY_COLOURS.control), hat: 'cap' },
+    // "My Blocks" (myBlocks/registry.js): call blocks + parameter reporters
+    // use the plain style, the "define" block reuses it with the same 'cap'
+    // hat shape as camp_hat_blocks above, for the same reason -- it's a
+    // stack entry point, not a normal statement.
+    camp_myblocks_blocks: styleFrom(CATEGORY_COLOURS.myBlocks),
+    camp_myblocks_hat_blocks: { ...styleFrom(CATEGORY_COLOURS.myBlocks), hat: 'cap' },
   },
   componentStyles: {
     workspaceBackgroundColour: '#F5F7FB',

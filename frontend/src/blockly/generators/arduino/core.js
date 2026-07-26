@@ -23,7 +23,7 @@ arduinoGenerator.ORDER_NONE = 99;
 
 // Arduino/C++ keywords and core API names that generated variable names must
 // not collide with.
-const RESERVED_WORDS = [
+const RESERVED_WORDS_LIST = [
   'setup', 'loop', 'if', 'else', 'for', 'while', 'do', 'switch', 'case',
   'break', 'continue', 'return', 'goto', 'void', 'int', 'float', 'double',
   'long', 'short', 'char', 'byte', 'boolean', 'bool', 'String', 'const',
@@ -33,7 +33,21 @@ const RESERVED_WORDS = [
   'Serial', 'random', 'randomSeed', 'constrain', 'min', 'max', 'abs', 'sqrt',
   'pow', 'map', 'tone', 'noTone', 'pulseIn', 'attachInterrupt',
   'detachInterrupt',
-].join(',');
+];
+export { RESERVED_WORDS_LIST as ARDUINO_RESERVED_WORDS };
+
+// "My Blocks" (myBlocks/registry.js) function names, added via
+// reserveIdentifier() as each custom block is created. Kept separate from
+// RESERVED_WORDS_LIST (fixed at import time) since these accumulate at
+// runtime -- init() below merges both into the Names instance every
+// generation run, so a kid naming a variable the same as a custom block
+// (e.g. both called "jump") gets auto-renamed by Blockly.Names instead of
+// silently colliding with the generated `void jump(...)` function, which
+// C++ does not allow.
+const dynamicReservedWords = [];
+arduinoGenerator.reserveIdentifier = function reserveIdentifier(name) {
+  if (!dynamicReservedWords.includes(name)) dynamicReservedWords.push(name);
+};
 
 arduinoGenerator.init = function init(workspace) {
   // #include lines, kept separate from definitions_ and always emitted first
@@ -43,10 +57,14 @@ arduinoGenerator.init = function init(workspace) {
   // Global variable/object declarations, keyed so repeated blocks referencing
   // the same variable/pin only emit one declaration.
   this.definitions_ = Object.create(null);
+  // "My Blocks" function definitions (void name(args) {...}), keyed by
+  // custom-block id -- see myBlocks/registry.js and generateArduinoCode()
+  // below, which populates this before setup()/loop() get walked.
+  this.functions_ = Object.create(null);
   // Lines contributed to setup(), keyed the same way as definitions_.
   this.setups_ = Object.create(null);
 
-  this.nameDB_ = new Blockly.Names(RESERVED_WORDS);
+  this.nameDB_ = new Blockly.Names([...RESERVED_WORDS_LIST, ...dynamicReservedWords].join(','));
   this.nameDB_.setVariableMap(workspace.getVariableMap());
 };
 
@@ -97,10 +115,16 @@ arduinoGenerator.scrub_ = function scrub_(block, code, opt_thisOnly) {
 arduinoGenerator.finish = function finish(setupCode, loopCode) {
   const includes = Object.values(this.includes_);
   const definitions = Object.values(this.definitions_);
+  const functions = Object.values(this.functions_);
   const hoistedSetupLines = Object.values(this.setups_);
 
   const includesText = includes.length ? `${includes.join('\n')}\n\n` : '';
   const defsText = definitions.length ? `${definitions.join('\n')}\n\n` : '';
+  // "My Blocks" function definitions, emitted after global variables and
+  // before setup()/loop() -- Arduino's build system auto-generates forward
+  // declarations from the sketch anyway, so this ordering is purely for
+  // readability when a kid opens View Code.
+  const functionsText = functions.length ? `${functions.join('\n\n')}\n\n` : '';
 
   // Hoisted lines (pinMode, Servo.attach, IrReceiver.begin, Serial.begin --
   // anything a block registered as a setup-time side effect via addSetup())
@@ -114,7 +138,7 @@ arduinoGenerator.finish = function finish(setupCode, loopCode) {
   const loopBody = loopCode;
 
   return (
-    `${includesText}${defsText}` +
+    `${includesText}${defsText}${functionsText}` +
     `void setup() {\n${setupBody}}\n\n` +
     `void loop() {\n${loopBody}}\n`
   );
@@ -138,7 +162,21 @@ arduinoGenerator.finish = function finish(setupCode, loopCode) {
 export function generateArduinoCode(workspace) {
   arduinoGenerator.init(workspace);
 
-  const hatBlock = workspace.getTopBlocks(true).find((block) => block.type === 'arduino_start');
+  const topBlocks = workspace.getTopBlocks(true);
+
+  // "My Blocks" definitions (myblock_define_*, see myBlocks/registry.js) are
+  // their own top-level hat blocks -- siblings of arduino_start, not part of
+  // its chain -- so the walk below would never reach them. Each one
+  // contributes a real `void name(...) {...}` function to functions_ up
+  // front, regardless of whether (or where) it's actually called from.
+  for (const block of topBlocks) {
+    const generatorFn = arduinoGenerator.forBlock[block.type];
+    if (block.type.startsWith('myblock_define_') && generatorFn) {
+      generatorFn(block, arduinoGenerator);
+    }
+  }
+
+  const hatBlock = topBlocks.find((block) => block.type === 'arduino_start');
   if (!hatBlock) {
     return arduinoGenerator.finish('', '');
   }

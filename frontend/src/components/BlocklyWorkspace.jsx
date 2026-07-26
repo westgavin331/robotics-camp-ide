@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as Blockly from 'blockly/core';
 import * as En from 'blockly/msg/en';
 import 'blockly/blocks';
@@ -6,7 +6,10 @@ import '../blockly/blocks/index.js';
 import { toolbox } from '../blockly/toolbox.js';
 import { scratchTheme } from '../blockly/theme.js';
 import { registerVariablesCategory } from '../blockly/registerVariablesCategory.js';
+import { registerMyBlocksCategory } from '../blockly/myBlocks/toolboxCategory.js';
+import { registerCustomBlock, getCustomBlocks } from '../blockly/myBlocks/registry.js';
 import { generateArduinoCode } from '../blockly/generators/arduino/index.js';
+import MakeBlockDialog from './MakeBlockDialog.jsx';
 
 // Blockly.Msg is empty until a locale is loaded -- stock block definitions
 // (controls_if, logic_compare, etc.) read their field labels from it, and
@@ -27,6 +30,8 @@ const REGENERATE_ON = new Set([
 
 export default function BlocklyWorkspace({ onCodeChange }) {
   const blocklyDivRef = useRef(null);
+  const workspaceRef = useRef(null);
+  const [showMakeBlockDialog, setShowMakeBlockDialog] = useState(false);
 
   useEffect(() => {
     const workspace = Blockly.inject(blocklyDivRef.current, {
@@ -37,8 +42,10 @@ export default function BlocklyWorkspace({ onCodeChange }) {
       zoom: { controls: true, wheel: true, startScale: 1 },
       trashcan: true,
     });
+    workspaceRef.current = workspace;
 
     registerVariablesCategory(workspace);
+    registerMyBlocksCategory(workspace, () => setShowMakeBlockDialog(true));
 
     const regenerate = (event) => {
       if (!REGENERATE_ON.has(event.type)) return;
@@ -69,10 +76,39 @@ export default function BlocklyWorkspace({ onCodeChange }) {
       if (rafId !== null) cancelAnimationFrame(rafId);
       resizeObserver.disconnect();
       workspace.dispose();
+      workspaceRef.current = null;
     };
     // Runs once: workspace is injected imperatively and torn down on unmount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return <div ref={blocklyDivRef} className="blockly-workspace" />;
+  // Registers the new block's types (registry.js) then drops a fresh
+  // "define" hat onto the canvas, same as Scratch/mBlock do right after
+  // "Make a Block" -- the kid lands straight on the empty definition ready
+  // to drag blocks into it, rather than having to go find it in the flyout.
+  function handleCreateBlock(spec) {
+    const workspace = workspaceRef.current;
+    const def = registerCustomBlock(spec);
+    if (workspace) {
+      const block = workspace.newBlock(def.defineType);
+      block.initSvg();
+      block.render();
+      block.moveBy(480, 30 + (getCustomBlocks().length - 1) * 160);
+      // Belt-and-suspenders: newBlock() should already fire a BLOCK_CREATE
+      // event the regenerate() listener above reacts to, but the new
+      // function needs to show up in View Code immediately regardless of
+      // that internal Blockly behaviour, not on the next unrelated edit.
+      onCodeChange(generateArduinoCode(workspace));
+    }
+    setShowMakeBlockDialog(false);
+  }
+
+  return (
+    <>
+      <div ref={blocklyDivRef} className="blockly-workspace" />
+      {showMakeBlockDialog && (
+        <MakeBlockDialog onCreate={handleCreateBlock} onCancel={() => setShowMakeBlockDialog(false)} />
+      )}
+    </>
+  );
 }

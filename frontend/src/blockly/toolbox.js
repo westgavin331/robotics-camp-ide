@@ -113,7 +113,13 @@ export const toolbox = {
       kind: 'category',
       name: 'Serial',
       colour: CATEGORY_COLOURS.serial,
-      contents: [{ kind: 'block', type: 'serial_print' }],
+      contents: [
+        {
+          kind: 'block',
+          type: 'serial_print',
+          inputs: { VALUE: { shadow: { type: 'shadow_text', fields: { TEXT: '' } } } },
+        },
+      ],
     },
     {
       kind: 'category',
@@ -209,30 +215,36 @@ export const toolbox = {
             TO: { shadow: { type: 'math_number', fields: { NUM: 100 } } },
           },
         },
+        // The one draggable, standalone "text" block keeps Blockly's stock
+        // look (quote icons, Operators green) -- only shadow defaults below
+        // switch to shadow_text (blocks/textShadow.js), which drops the
+        // icons so an unfilled text socket reads as plainly as a
+        // math_number shadow instead of shouting "text block" at a kid who
+        // hasn't typed anything yet.
         { kind: 'block', type: 'text', fields: { TEXT: '' } },
         { kind: 'block', type: 'text_join' },
         {
           kind: 'block',
           type: 'text_length',
-          inputs: { VALUE: { shadow: { type: 'text', fields: { TEXT: 'abc' } } } },
+          inputs: { VALUE: { shadow: { type: 'shadow_text', fields: { TEXT: 'abc' } } } },
         },
         {
           kind: 'block',
           type: 'text_isEmpty',
-          inputs: { VALUE: { shadow: { type: 'text', fields: { TEXT: '' } } } },
+          inputs: { VALUE: { shadow: { type: 'shadow_text', fields: { TEXT: '' } } } },
         },
         {
           kind: 'block',
           type: 'text_indexOf',
           inputs: {
-            VALUE: { shadow: { type: 'text', fields: { TEXT: 'abc' } } },
-            FIND: { shadow: { type: 'text', fields: { TEXT: 'b' } } },
+            VALUE: { shadow: { type: 'shadow_text', fields: { TEXT: 'abc' } } },
+            FIND: { shadow: { type: 'shadow_text', fields: { TEXT: 'b' } } },
           },
         },
         {
           kind: 'block',
           type: 'text_charAt',
-          inputs: { VALUE: { shadow: { type: 'text', fields: { TEXT: 'abc' } } } },
+          inputs: { VALUE: { shadow: { type: 'shadow_text', fields: { TEXT: 'abc' } } } },
         },
       ],
     },
@@ -241,6 +253,12 @@ export const toolbox = {
       name: 'Variables',
       colour: CATEGORY_COLOURS.variables,
       custom: 'VARIABLES_WITH_CHANGE',
+    },
+    {
+      kind: 'category',
+      name: 'My Blocks',
+      colour: CATEGORY_COLOURS.myBlocks,
+      custom: 'MY_BLOCKS',
     },
   ],
 };
