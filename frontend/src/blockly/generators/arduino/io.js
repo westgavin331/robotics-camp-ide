@@ -1,5 +1,25 @@
 import { arduinoGenerator as generator } from './core.js';
 
+// The one block that lets a kid state a pin's mode explicitly rather than
+// have it inferred from io_digital_write/io_digital_read/io_pwm_write below
+// -- this is also the only way INPUT_PULLUP ever reaches a pin, since the
+// inferring blocks can only ever guess OUTPUT or INPUT. Routed through the
+// same requestPinMode() as the inferred guesses (rather than straight to
+// addSetup) so precedence between them is resolved once in finish(),
+// regardless of which block the generation walk visits first.
+generator.forBlock['io_set_pin_mode'] = function (block, gen) {
+  const pin = gen.valueToCode(block, 'PIN', gen.ORDER_NONE) || '0';
+  const mode = block.getFieldValue('MODE');
+  const trimmed = pin.trim();
+  if (/^\d+$/.test(trimmed)) {
+    gen.requestPinMode(trimmed, mode, true);
+    return '';
+  }
+  // Dynamic pin expression: no literal pin to hoist to setup(), same
+  // inline fallback as io_digital_write/io_pwm_write below.
+  return `pinMode(${pin}, ${mode});\n`;
+};
+
 generator.forBlock['io_digital_write'] = function (block, gen) {
   const pin = gen.valueToCode(block, 'PIN', gen.ORDER_NONE) || '0';
   const state = block.getFieldValue('STATE');

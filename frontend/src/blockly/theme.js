@@ -116,6 +116,10 @@ export const scratchTheme = Blockly.Theme.defineTheme('scratch_style', {
   },
   componentStyles: {
     workspaceBackgroundColour: '#F5F7FB',
+    // Same tone as the workspace so the toolbox reads as one calm canvas
+    // rather than a visibly separate grey panel (Blockly's own default).
+    toolboxBackgroundColour: '#F5F7FB',
+    toolboxForegroundColour: '#3D3A45',
     flyoutBackgroundColour: '#FFFFFF',
     flyoutForegroundColour: '#6b6375',
     flyoutOpacity: 1,

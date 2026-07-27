@@ -55,13 +55,120 @@
   padding: 12px;
 }
 
-.blockly-workspace {
+.blockly-workspace-wrapper {
+  position: relative;
   flex: 1;
   min-width: 0;
+  height: 100%;
+}
+
+.blockly-workspace {
+  width: 100%;
   height: 100%;
   border-radius: var(--card-radius);
   overflow: hidden;
   box-shadow: var(--card-shadow);
+}
+
+/* Toggle for whether a category's flyout stays open across multiple block
+   drags (Flyout.setAutoClose(false)) or auto-closes after each one (Blockly's
+   default). Floats over the top-right of the canvas, clear of the toolbox
+   column and Blockly's own bottom-right zoom/trash controls. */
+.flyout-pin-toggle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 13px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 20px;
+  border: 2px solid var(--accent-border);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--accent);
+  cursor: pointer;
+  box-shadow: var(--card-shadow);
+  transition: filter 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.flyout-pin-toggle:hover {
+  filter: brightness(1.05);
+}
+
+.flyout-pin-toggle .pin-icon {
+  font-size: 16px;
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.flyout-pin-toggle.is-pinned {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.flyout-pin-toggle.is-pinned .pin-icon {
+  transform: rotate(-35deg);
+}
+
+/* ---- Toolbox / category sidebar ----
+   Blockly injects its own toolbox DOM straight into .blockly-workspace: no
+   React component to restyle, just these Blockly-native class names. */
+
+.blockly-workspace .blocklyToolbox {
+  padding: 10px 6px;
+}
+
+.blockly-workspace .blocklyToolboxCategory {
+  display: flex;
+  align-items: center;
+  height: auto;
+  line-height: normal;
+  margin: 3px 6px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.blockly-workspace .blocklyToolboxCategory:not(.blocklyToolboxSelected):hover {
+  background-color: var(--accent-bg);
+}
+
+.blockly-workspace .blocklyTreeRowContentContainer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.blockly-workspace .blocklyToolboxCategoryLabel {
+  cursor: pointer;
+  padding: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* Selected category gets Blockly's own full-colour pill background (set
+   inline per-category via ToolboxCategory.setSelected) plus a white label
+   (Blockly default) -- the text-shadow keeps that white label readable even
+   against the lighter category colours (e.g. Serial's gold). */
+.blockly-workspace .blocklyToolboxSelected .blocklyToolboxCategoryLabel {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.blockly-workspace .category-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  flex: none;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.85),
+    0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
 .code-view,

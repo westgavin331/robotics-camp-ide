@@ -20,6 +20,11 @@ export const toolbox = {
       contents: [
         {
           kind: 'block',
+          type: 'io_set_pin_mode',
+          inputs: { PIN: { shadow: { type: 'math_number', fields: { NUM: 13 } } } },
+        },
+        {
+          kind: 'block',
           type: 'io_digital_write',
           inputs: { PIN: { shadow: { type: 'math_number', fields: { NUM: 13 } } } },
         },

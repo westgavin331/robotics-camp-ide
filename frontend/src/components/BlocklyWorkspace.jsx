@@ -5,6 +5,9 @@ import 'blockly/blocks';
 import '../blockly/blocks/index.js';
 import { toolbox } from '../blockly/toolbox.js';
 import { scratchTheme } from '../blockly/theme.js';
+// Side-effect only: registers the rounded colour-dot swatch category (see
+// that file) in place of Blockly's default flat-bar category rendering.
+import '../blockly/toolboxCategory.js';
 import { registerVariablesCategory } from '../blockly/registerVariablesCategory.js';
 import { registerMyBlocksCategory } from '../blockly/myBlocks/toolboxCategory.js';
 import {
@@ -57,6 +60,9 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
   const workspaceRef = useRef(null);
   // null = closed; {mode: 'create'} | {mode: 'edit', defId} | {mode: 'delete', defId, usages}
   const [dialogState, setDialogState] = useState(null);
+  // Session-only (resets on reload): whether a category's flyout stays open
+  // across multiple block drags instead of Blockly's default auto-close.
+  const [flyoutPinned, setFlyoutPinned] = useState(false);
 
   // Shared by applyProject (a real Load) and newProject (New button) below --
   // both mean "replace the whole workspace", just with or without saved data
@@ -169,6 +175,15 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Blockly's toolbox owns a single Flyout instance for the workspace's
+  // lifetime (repopulated per category, never recreated), so this only needs
+  // to run when the toggle changes -- not once per category click. autoClose
+  // is a real, public Flyout property/setter ("does the flyout automatically
+  // close when a block is created"), not a custom workaround.
+  useEffect(() => {
+    workspaceRef.current?.getFlyout()?.setAutoClose(!flyoutPinned);
+  }, [flyoutPinned]);
+
   // Registers the new block's types (registry.js) then drops a fresh
   // "define" hat onto the canvas, same as Scratch/mBlock do right after
   // "Make a Block" -- the kid lands straight on the empty definition ready
@@ -242,7 +257,25 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
 
   return (
     <>
-      <div ref={blocklyDivRef} className="blockly-workspace" />
+      <div className="blockly-workspace-wrapper">
+        <div ref={blocklyDivRef} className="blockly-workspace" />
+        <button
+          type="button"
+          className={`flyout-pin-toggle${flyoutPinned ? ' is-pinned' : ''}`}
+          aria-pressed={flyoutPinned}
+          title={
+            flyoutPinned
+              ? 'Category stays open — click to auto-close after each block'
+              : 'Category auto-closes — click to keep it open'
+          }
+          onClick={() => setFlyoutPinned((pinned) => !pinned)}
+        >
+          <span className="pin-icon" aria-hidden="true">
+            📌
+          </span>
+          {flyoutPinned ? 'Stays Open' : 'Auto-Close'}
+        </button>
+      </div>
       {dialogState?.mode === 'create' && <MakeBlockDialog onSubmit={handleCreate} onCancel={() => setDialogState(null)} />}
       {dialogState?.mode === 'edit' && editingDef && (
         <MakeBlockDialog

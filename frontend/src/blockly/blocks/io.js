@@ -5,6 +5,29 @@ import * as Blockly from 'blockly/core';
 // consistent with how Operators/Variables values already work elsewhere.
 Blockly.defineBlocksWithJsonArray([
   {
+    type: 'io_set_pin_mode',
+    message0: 'set pin %1 mode %2',
+    args0: [
+      { type: 'input_value', name: 'PIN', check: 'Number' },
+      {
+        type: 'field_dropdown',
+        name: 'MODE',
+        options: [
+          ['OUTPUT', 'OUTPUT'],
+          ['INPUT', 'INPUT'],
+          ['INPUT_PULLUP', 'INPUT_PULLUP'],
+        ],
+      },
+    ],
+    inputsInline: true,
+    previousStatement: null,
+    nextStatement: null,
+    style: 'camp_io_blocks',
+    tooltip:
+      'Explicitly configure a pin (pinMode). Overrides any automatic OUTPUT/INPUT guess ' +
+      'from other blocks using the same pin -- the only way to get INPUT_PULLUP.',
+  },
+  {
     type: 'io_digital_write',
     message0: 'set digital pin %1 to %2',
     args0: [
