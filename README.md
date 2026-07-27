@@ -233,6 +233,42 @@ by the backend response shape (`compiled.kind`), not string matching.
   response). The reset/sync/page-write sequence itself was only
   confirmed by testing against a real Uno.
 
+## Saving projects
+
+Two independent layers, matching how camp actually works (same kid, same
+laptop, mid-session vs. a different Chromebook on a different day):
+
+- **Autosave (automatic, same device only)**: every change debounce-writes
+  the full project (Blockly's own workspace serialization + a snapshot of
+  any "My Blocks" custom block definitions -- see below) to the browser's
+  `localStorage`, and it's silently restored on the next page load if
+  present. No UI, nothing to remember -- it's the safety net for an
+  accidental reload or closing/reopening the browser.
+- **Named Save/Load (manual, follows a kid across devices)**: the **Save**
+  button in the header asks for a name (a kid's own name, or a team name for
+  the Day 4+ team portion) and POSTs the same full project state to the
+  backend, which stores it in MongoDB Atlas (see "Deploying to production"
+  below for why). **Load** lists every saved name and restores whichever one
+  is picked -- confirms first, since it replaces whatever's currently on
+  screen.
+
+Both layers save/restore `Blockly.serialization.workspaces.save()`'s actual
+output, not the generated code text -- a loaded project is fully editable
+again, not a read-only dump.
+
+**Why "My Blocks" needs its own snapshot** (`frontend/src/blockly/
+myBlocks/registry.js`'s `restoreCustomBlocks`/`resetCustomBlocks`,
+`projectIO.js`): custom block *types* (e.g. a kid-made "Blink Twice" block)
+only exist as runtime JS state created the moment a kid clicks "Make a
+Block" -- Blockly's own serialization has no idea about them, it just
+records that some block instance has type `myblock_call_cb3`. Load a
+project on a fresh page (or a different Chromebook) without first
+recreating that type, and Blockly has nothing to construct those blocks
+from. `serializeProject`/`loadProject` (`projectIO.js`) bundle a snapshot of
+the custom-block registry alongside the workspace state and replay it
+*before* the workspace loads, so this works correctly across devices, not
+just same-session.
+
 ## Deploying to production
 
 For camp day: backend on Render (Docker, so `arduino-cli` can actually run
@@ -263,6 +299,57 @@ IP matching, unlike the local mkcert setup.
 - **Free-tier characteristic worth knowing**: Render's free web services
   spin down after ~15 minutes idle and take up to a minute to wake on the
   next request. The first "Run" of the day may just look slow, not broken.
+
+### Named save/load storage: MongoDB Atlas, not Render
+
+Checked directly against Render's own current docs before choosing (not
+assumed from memory), because getting this wrong means silently losing
+every kid's saved project:
+
+- **Render's free web services have no persistent disk** -- confirmed via
+  render.com/docs/disks: "any changes you make to a service's local files
+  are lost every time the service redeploys or restarts" on the free tier.
+  File-based storage on the backend was never viable here.
+- **Render's own free PostgreSQL is durable but expires** -- 30 days after
+  creation, then a 14-day grace period, then the database *and everything
+  in it* is permanently deleted unless upgraded to a paid plan first. That
+  would mean remembering to recreate + migrate data on a recurring
+  ~30-40 day cycle indefinitely, forever -- forgetting once means silent,
+  unrecoverable data loss for every saved project, the exact failure mode
+  this feature exists to avoid.
+- **Render's free Key Value (Redis) is worse, not better** -- it's
+  in-memory only with no disk persistence at all; data is lost on *any*
+  restart, not just after 30 days.
+- **MongoDB Atlas's free M0 cluster never expires and never pauses** --
+  512MB storage (plenty; a saved project is a few KB of JSON), no credit
+  card, no time limit. The tradeoff is a second account/provider to set up,
+  outside Render -- worth it here given the alternative is an ongoing
+  maintenance task with a real chance of silently wiping camper data.
+
+**One-time setup** (a few minutes, then never touched again):
+
+1. Create a free account at [mongodb.com/cloud/atlas/register](https://www.mongodb.com/cloud/atlas/register).
+2. Create a free **M0** cluster (the free tier is offered during the
+   creation flow -- don't pick a paid tier).
+3. **Database Access** (left sidebar) → add a database user with a
+   generated password -- save it somewhere, you'll paste it into the
+   connection string next.
+4. **Network Access** (left sidebar) → Add IP Address → "Allow Access from
+   Anywhere" (`0.0.0.0/0`). Render's outbound IPs aren't fixed on the free
+   tier, so this is the practical option; the database user's password is
+   still required for anyone to actually read/write data.
+5. **Database → Connect → Drivers** → copy the connection string (looks
+   like `mongodb+srv://<user>:<password>@cluster0.xxxxx.mongodb.net/`) and
+   fill in the real password from step 3.
+6. On Render, open the backend service → **Environment** → add
+   `MONGODB_URI` set to that connection string → save (Render redeploys
+   automatically). For local dev, copy `backend/.env.example` to
+   `backend/.env` and paste it there instead.
+
+No other code changes needed -- `backend/src/db.js` connects lazily on the
+first save/load request, so the rest of the app (compile/upload) keeps
+working even if this is skipped or misconfigured; only Save/Load themselves
+would show a "couldn't reach the save service" message.
 
 ## Known stage-1 simplifications
 

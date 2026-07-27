@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import fs from 'node:fs';
@@ -5,6 +6,7 @@ import https from 'node:https';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compileSketch } from './compile.js';
+import { validateName, saveProjectData, listProjectNames, getProjectByName } from './projects.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -54,6 +56,50 @@ app.post('/api/compile', async (req, res) => {
       error: 'compile_pipeline_error',
       message: err.message || 'Unexpected error running the compile pipeline.',
     });
+  }
+});
+
+// Named save/load (spec: kid/team-named projects that follow them across
+// devices, backed by MongoDB Atlas -- see db.js for why). Every route here
+// can fail for the same underlying reason (no MONGODB_URI, or Atlas
+// unreachable) -- caught uniformly and reported as a distinct "infra" error
+// the frontend renders as "couldn't reach the save service", the same
+// pattern /api/compile already uses for its own infra-vs-data-error split.
+app.post('/api/projects', async (req, res) => {
+  const { name, workspace, customBlocks } = req.body || {};
+  const validated = validateName(name);
+  if (!validated.ok) {
+    return res.status(400).json({ success: false, error: validated.error });
+  }
+  try {
+    const result = await saveProjectData(validated.name, { workspace, customBlocks });
+    return res.json({ success: true, name: result.name, updatedAt: result.updatedAt });
+  } catch (err) {
+    console.error('Save project error:', err);
+    return res.status(503).json({ success: false, error: 'Could not reach the save service.' });
+  }
+});
+
+app.get('/api/projects', async (_req, res) => {
+  try {
+    const projects = await listProjectNames();
+    return res.json({ success: true, projects });
+  } catch (err) {
+    console.error('List projects error:', err);
+    return res.status(503).json({ success: false, error: 'Could not reach the save service.' });
+  }
+});
+
+app.get('/api/projects/:name', async (req, res) => {
+  try {
+    const project = await getProjectByName(req.params.name);
+    if (!project) {
+      return res.status(404).json({ success: false, error: 'No saved project with that name.' });
+    }
+    return res.json({ success: true, project });
+  } catch (err) {
+    console.error('Load project error:', err);
+    return res.status(503).json({ success: false, error: 'Could not reach the save service.' });
   }
 });
 

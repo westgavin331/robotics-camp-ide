@@ -7,9 +7,17 @@ import { arduinoGenerator, ARDUINO_RESERVED_WORDS } from '../generators/arduino/
 // dialog, so there's no static blocks/*.js file to define them in -- this
 // module builds and registers a matching pair of Blockly block types (a
 // "define" hat + a "call" block) plus one reporter block per parameter, for
-// every custom block a kid creates. Session-only: this registry lives in JS
-// module state, not in the workspace's own serialized XML/JSON, so a page
-// reload loses it (matches the ask -- full save/load isn't required yet).
+// every custom block a kid creates.
+//
+// This registry lives in JS module state, not in the workspace's own
+// Blockly.serialization output -- a saved/autosaved project's workspace
+// JSON can reference block *types* like "myblock_define_cb3" that don't
+// exist yet in a fresh page load or a different device's session.
+// restoreCustomBlocks()/resetCustomBlocks() below (used by
+// ../projectIO.js) are what make a save portable: they replay this
+// registry's state -- same ids, same generated type strings -- *before*
+// Blockly.serialization.workspaces.load() ever touches the saved blocks, so
+// every reference resolves.
 //
 // Editing support (updateCustomBlock) is why "define"/"call" are built
 // imperatively (Blockly.Blocks[type] = {init(){...}}) instead of the static
@@ -351,4 +359,59 @@ export function updateCustomBlock(defId, { name, params }) {
   const def = customBlocks.find((d) => d.id === defId);
   const diff = applyDefinitionUpdate(def, { name, params });
   return { def, diff };
+}
+
+// Wipes every custom block this session knows about -- called by
+// ../projectIO.js immediately before restoring a project (autosave or a
+// named Load), since "load a project" means *replace* the workspace
+// entirely, not merge into whatever was already there. Without this, custom
+// blocks from before the load would (a) keep cluttering the My Blocks
+// flyout for a project that doesn't use them, and (b) risk id collisions
+// with the just-loaded project's own "cb1", "cb2", ... ids, which are only
+// unique *within* a single save, not globally.
+//
+// Doesn't (and can't cleanly) unregister the actual Blockly.Blocks[type]
+// entries or their generators from Blockly's own global registry -- those
+// are simply left orphaned, unreachable through the toolbox or
+// getCustomBlocks() once removed from `customBlocks` here, and harmless to
+// leave behind for the rest of the session.
+export function resetCustomBlocks() {
+  customBlocks.length = 0;
+  counter = 0;
+  usedIdentifiers.clear();
+  for (const w of ARDUINO_RESERVED_WORDS) usedIdentifiers.add(w.toLowerCase());
+}
+
+// Re-registers a previously-saved set of custom block definitions under
+// their *original* ids/type strings (unlike registerCustomBlock, which
+// always mints a fresh identity) -- so a loaded workspace's block instances,
+// which hard-reference type strings like "myblock_call_cb3", resolve
+// correctly. Expected to run against an empty registry (see
+// resetCustomBlocks) immediately before Blockly.serialization.workspaces
+// .load(); skips any id already present so calling it twice (e.g. a
+// double-invoked effect) is harmless rather than duplicating entries.
+export function restoreCustomBlocks(savedDefs) {
+  for (const saved of savedDefs) {
+    if (customBlocks.some((d) => d.id === saved.id)) continue;
+
+    const def = {
+      id: saved.id,
+      name: saved.name,
+      cName: saved.cName,
+      nextParamSeq: saved.nextParamSeq ?? saved.params.length,
+      params: saved.params.map((p) => ({ ...p })),
+      defineType: `myblock_define_${saved.id}`,
+      callType: `myblock_call_${saved.id}`,
+    };
+    customBlocks.push(def);
+    registerDefineAndCallTypes(def);
+    for (const p of def.params) registerGetterType(def, p);
+    arduinoGenerator.reserveIdentifier(def.cName);
+    usedIdentifiers.add(def.cName.toLowerCase());
+
+    // Keeps ids/cNames minted *after* this restore (a kid making a brand
+    // new custom block post-load) from ever colliding with a restored one.
+    const n = Number(String(saved.id).replace(/^cb/, ''));
+    if (Number.isFinite(n) && n > counter) counter = n;
+  }
 }

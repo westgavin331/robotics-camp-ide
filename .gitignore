@@ -7,3 +7,6 @@ npm-debug.log*
 
 # mkcert-generated local dev certs (private key material -- never commit)
 *.pem
+
+# Local env vars (MONGODB_URI etc) -- see backend/.env.example
+.env

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState, forwardRef } from 'react';
 import * as Blockly from 'blockly/core';
 import * as En from 'blockly/msg/en';
 import 'blockly/blocks';
@@ -15,6 +15,13 @@ import {
 } from '../blockly/myBlocks/registry.js';
 import { applyEditCascade } from '../blockly/myBlocks/cascade.js';
 import { generateArduinoCode } from '../blockly/generators/arduino/index.js';
+import {
+  serializeProject,
+  loadProject,
+  saveAutosave,
+  scheduleAutosaveWrite,
+  loadAutosaveIfPresent,
+} from '../blockly/projectIO.js';
 import MakeBlockDialog from './MakeBlockDialog.jsx';
 
 // Blockly.Msg is empty until a locale is loaded -- stock block definitions
@@ -34,11 +41,31 @@ const REGENERATE_ON = new Set([
   Blockly.Events.VAR_RENAME,
 ]);
 
-export default function BlocklyWorkspace({ onCodeChange }) {
+// Exposes an imperative handle (getSnapshot/applyProject) rather than
+// lifting the Blockly workspace instance itself up to App.jsx -- App owns
+// the Save/Load *dialogs* (they live in the header, like every other
+// top-level control), but actually reading/writing workspace state has to
+// go through Blockly's own API, which only this component holds a
+// reference to (workspaceRef).
+const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, ref) {
   const blocklyDivRef = useRef(null);
   const workspaceRef = useRef(null);
   // null = closed; {mode: 'create'} | {mode: 'edit', defId}
   const [dialogState, setDialogState] = useState(null);
+
+  useImperativeHandle(ref, () => ({
+    getSnapshot: () => serializeProject(workspaceRef.current),
+    applyProject: (project) => {
+      const workspace = workspaceRef.current;
+      if (!workspace) return;
+      loadProject(workspace, project);
+      onCodeChange(generateArduinoCode(workspace));
+      // Immediate, not debounced -- a kid who loads a project and closes the
+      // laptop before making any further edits should still find it there
+      // next time, not the state from before the load.
+      saveAutosave(workspace);
+    },
+  }));
 
   useEffect(() => {
     const workspace = Blockly.inject(blocklyDivRef.current, {
@@ -58,9 +85,24 @@ export default function BlocklyWorkspace({ onCodeChange }) {
     // so it calls back through this module-level bridge instead.
     onEditBlockRequested((defId) => setDialogState({ mode: 'edit', defId }));
 
+    // Same-device safety net: restore before wiring the change listener
+    // below, so reconstructing the saved blocks doesn't itself get treated
+    // as "new changes" needing yet another autosave write.
+    const autosaved = loadAutosaveIfPresent();
+    if (autosaved) {
+      try {
+        loadProject(workspace, autosaved);
+      } catch (err) {
+        // Corrupt/incompatible autosave data -- start from an empty
+        // workspace rather than leave the app stuck on a crash.
+        console.warn('Failed to restore autosaved project, starting fresh:', err);
+      }
+    }
+
     const regenerate = (event) => {
       if (!REGENERATE_ON.has(event.type)) return;
       onCodeChange(generateArduinoCode(workspace));
+      scheduleAutosaveWrite(workspace);
     };
 
     workspace.addChangeListener(regenerate);
@@ -107,6 +149,7 @@ export default function BlocklyWorkspace({ onCodeChange }) {
       block.render();
       block.moveBy(480, 30 + (getCustomBlocks().length - 1) * 160);
       onCodeChange(generateArduinoCode(workspace));
+      saveAutosave(workspace);
     }
     setDialogState(null);
   }
@@ -121,6 +164,7 @@ export default function BlocklyWorkspace({ onCodeChange }) {
     if (workspace) {
       applyEditCascade(workspace, def, diff);
       onCodeChange(generateArduinoCode(workspace));
+      saveAutosave(workspace);
     }
     setDialogState(null);
   }
@@ -141,4 +185,6 @@ export default function BlocklyWorkspace({ onCodeChange }) {
       )}
     </>
   );
-}
+});
+
+export default BlocklyWorkspace;

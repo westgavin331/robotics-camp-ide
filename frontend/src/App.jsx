@@ -1,13 +1,17 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import BlocklyWorkspace from './components/BlocklyWorkspace.jsx';
 import CodeView from './components/CodeView.jsx';
 import HardwarePanel from './components/HardwarePanel.jsx';
 import ResizeHandle from './components/ResizeHandle.jsx';
+import SaveDialog from './components/SaveDialog.jsx';
+import LoadDialog from './components/LoadDialog.jsx';
+import { saveProject, fetchProject } from './api/projects.js';
 import './App.css';
 
 const DEFAULT_HARDWARE_WIDTH = 360;
 const MIN_HARDWARE_WIDTH = 260;
 const MAX_HARDWARE_WIDTH = 640;
+const LAST_PROJECT_NAME_KEY = 'roboticsCampLastProjectName';
 
 function loadStoredWidth() {
   const stored = Number(localStorage.getItem('hardwarePanelWidth'));
@@ -24,6 +28,9 @@ function App() {
     () => localStorage.getItem('hardwarePanelCollapsed') === 'true',
   );
   const [hardwareWidth, setHardwareWidth] = useState(loadStoredWidth);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [showLoadDialog, setShowLoadDialog] = useState(false);
+  const blocklyRef = useRef(null);
 
   function toggleHardwarePanel() {
     setHardwareCollapsed((prev) => {
@@ -43,11 +50,34 @@ function App() {
     });
   }
 
+  // Cross-device save (MongoDB Atlas via the backend) -- the Blockly
+  // workspace + My Blocks snapshot itself is read through BlocklyWorkspace's
+  // imperative handle, since only that component holds the live Blockly
+  // workspace instance. Remembering the last-used name is a small
+  // convenience so a kid re-saving later in the day doesn't retype it.
+  async function handleSave(name) {
+    const snapshot = blocklyRef.current.getSnapshot();
+    await saveProject(name, snapshot);
+    localStorage.setItem(LAST_PROJECT_NAME_KEY, name);
+  }
+
+  async function handleLoad(name) {
+    const project = await fetchProject(name);
+    blocklyRef.current.applyProject(project);
+    localStorage.setItem(LAST_PROJECT_NAME_KEY, name);
+  }
+
   return (
     <div className="app">
       <header className="app-header">
         <h1>Robotics Camp Block IDE</h1>
         <div className="header-actions">
+          <button type="button" className="header-toggle" onClick={() => setShowSaveDialog(true)}>
+            Save
+          </button>
+          <button type="button" className="header-toggle" onClick={() => setShowLoadDialog(true)}>
+            Load
+          </button>
           <button
             type="button"
             className="header-toggle"
@@ -67,7 +97,7 @@ function App() {
         </div>
       </header>
       <main className="app-main">
-        <BlocklyWorkspace onCodeChange={setCode} />
+        <BlocklyWorkspace ref={blocklyRef} onCodeChange={setCode} />
         {showCode && <CodeView code={code} />}
         {!hardwareCollapsed && (
           <>
@@ -76,6 +106,14 @@ function App() {
           </>
         )}
       </main>
+      {showSaveDialog && (
+        <SaveDialog
+          initialName={localStorage.getItem(LAST_PROJECT_NAME_KEY) || ''}
+          onSave={handleSave}
+          onCancel={() => setShowSaveDialog(false)}
+        />
+      )}
+      {showLoadDialog && <LoadDialog onLoad={handleLoad} onCancel={() => setShowLoadDialog(false)} />}
     </div>
   );
 }

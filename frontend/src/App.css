@@ -496,6 +496,64 @@
   filter: brightness(1.05);
 }
 
+.modal-create:disabled,
+.modal-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.modal-success {
+  margin: 0 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #15803d;
+}
+
+.load-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+}
+
+.load-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.load-list-item:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.load-list-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.load-list-date {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9ca3af;
+}
+
 @media (max-width: 900px) {
   .app-main {
     flex-direction: column;
