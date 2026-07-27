@@ -15,6 +15,7 @@ import {
 } from '../blockly/myBlocks/registry.js';
 import { applyEditCascade } from '../blockly/myBlocks/cascade.js';
 import { generateArduinoCode } from '../blockly/generators/arduino/index.js';
+import { updateIrHoldWarnings } from '../blockly/warnings.js';
 import {
   serializeProject,
   loadProject,
@@ -60,6 +61,7 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
       if (!workspace) return;
       loadProject(workspace, project);
       onCodeChange(generateArduinoCode(workspace));
+      updateIrHoldWarnings(workspace);
       // Immediate, not debounced -- a kid who loads a project and closes the
       // laptop before making any further edits should still find it there
       // next time, not the state from before the load.
@@ -102,11 +104,13 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
     const regenerate = (event) => {
       if (!REGENERATE_ON.has(event.type)) return;
       onCodeChange(generateArduinoCode(workspace));
+      updateIrHoldWarnings(workspace);
       scheduleAutosaveWrite(workspace);
     };
 
     workspace.addChangeListener(regenerate);
     onCodeChange(generateArduinoCode(workspace));
+    updateIrHoldWarnings(workspace);
 
     // Watches the container's own size, not just window resize -- toggling
     // "Hide Tools"/"View Code" or dragging the hardware panel's resize
@@ -149,6 +153,7 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
       block.render();
       block.moveBy(480, 30 + (getCustomBlocks().length - 1) * 160);
       onCodeChange(generateArduinoCode(workspace));
+      updateIrHoldWarnings(workspace);
       saveAutosave(workspace);
     }
     setDialogState(null);
@@ -164,6 +169,7 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
     if (workspace) {
       applyEditCascade(workspace, def, diff);
       onCodeChange(generateArduinoCode(workspace));
+      updateIrHoldWarnings(workspace);
       saveAutosave(workspace);
     }
     setDialogState(null);

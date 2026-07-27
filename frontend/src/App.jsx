@@ -5,6 +5,7 @@ import HardwarePanel from './components/HardwarePanel.jsx';
 import ResizeHandle from './components/ResizeHandle.jsx';
 import SaveDialog from './components/SaveDialog.jsx';
 import LoadDialog from './components/LoadDialog.jsx';
+import ImportCppDialog from './components/ImportCppDialog.jsx';
 import { saveProject, fetchProject } from './api/projects.js';
 import './App.css';
 
@@ -30,6 +31,7 @@ function App() {
   const [hardwareWidth, setHardwareWidth] = useState(loadStoredWidth);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showLoadDialog, setShowLoadDialog] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
   const blocklyRef = useRef(null);
 
   function toggleHardwarePanel() {
@@ -67,6 +69,13 @@ function App() {
     localStorage.setItem(LAST_PROJECT_NAME_KEY, name);
   }
 
+  // importCpp/index.js already did the hard part (parse + recognize +
+  // build a project); this just reuses the exact same "replace the
+  // workspace" path Load already uses.
+  async function handleImport(project) {
+    blocklyRef.current.applyProject(project);
+  }
+
   return (
     <div className="app">
       <header className="app-header">
@@ -77,6 +86,9 @@ function App() {
           </button>
           <button type="button" className="header-toggle" onClick={() => setShowLoadDialog(true)}>
             Load
+          </button>
+          <button type="button" className="header-toggle" onClick={() => setShowImportDialog(true)}>
+            Import C++
           </button>
           <button
             type="button"
@@ -114,6 +126,7 @@ function App() {
         />
       )}
       {showLoadDialog && <LoadDialog onLoad={handleLoad} onCancel={() => setShowLoadDialog(false)} />}
+      {showImportDialog && <ImportCppDialog onImport={handleImport} onCancel={() => setShowImportDialog(false)} />}
     </div>
   );
 }

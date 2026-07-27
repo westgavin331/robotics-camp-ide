@@ -554,6 +554,48 @@
   color: #9ca3af;
 }
 
+.import-cpp-card {
+  max-width: 640px;
+  width: 90vw;
+}
+
+.import-cpp-textarea {
+  width: 100%;
+  min-height: 260px;
+  margin-bottom: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+  color: var(--code-text);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.import-cpp-upload-row {
+  display: flex;
+  margin-bottom: 8px;
+}
+
+.import-errors {
+  margin-bottom: 8px;
+}
+
+.import-errors-list {
+  margin: 0;
+  padding-left: 18px;
+  max-height: 180px;
+  overflow-y: auto;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.import-errors-list li {
+  margin-bottom: 4px;
+}
+
 @media (max-width: 900px) {
   .app-main {
     flex-direction: column;
