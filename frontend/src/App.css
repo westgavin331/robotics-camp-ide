@@ -601,14 +601,24 @@
 
 .load-list-item {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: stretch;
   min-height: 48px;
-  padding: 0 16px;
   border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--bg);
+  overflow: hidden;
+}
+
+.load-list-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 16px;
+  border: none;
+  background: transparent;
   color: var(--text-h);
   font-family: var(--sans);
   font-size: 15px;
@@ -617,8 +627,7 @@
   cursor: pointer;
 }
 
-.load-list-item:hover {
-  border-color: var(--accent-border);
+.load-list-main:hover {
   background: var(--accent-bg);
 }
 
@@ -633,6 +642,21 @@
   font-size: 12px;
   font-weight: 600;
   color: #9ca3af;
+}
+
+.load-list-delete {
+  flex-shrink: 0;
+  width: 48px;
+  border: none;
+  border-left: 1px solid var(--border);
+  background: transparent;
+  color: #b91c1c;
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.load-list-delete:hover {
+  background: rgba(248, 113, 113, 0.16);
 }
 
 .import-cpp-card {

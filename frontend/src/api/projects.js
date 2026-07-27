@@ -44,6 +44,20 @@ export async function fetchProject(name) {
   return data.project;
 }
 
+export async function deleteProject(name) {
+  let res;
+  try {
+    res = await fetch(`${BACKEND_URL}/api/projects/${encodeURIComponent(name)}`, { method: 'DELETE' });
+  } catch {
+    throw new Error("Couldn't reach the save service. Check your internet and try again.");
+  }
+  const data = await parseJsonSafe(res);
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || "Couldn't delete that project.");
+  }
+  return data;
+}
+
 export async function saveProject(name, project) {
   let res;
   try {

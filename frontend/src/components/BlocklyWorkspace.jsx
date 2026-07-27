@@ -58,18 +58,33 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
   // null = closed; {mode: 'create'} | {mode: 'edit', defId} | {mode: 'delete', defId, usages}
   const [dialogState, setDialogState] = useState(null);
 
+  // Shared by applyProject (a real Load) and newProject (New button) below --
+  // both mean "replace the whole workspace", just with or without saved data
+  // to restore. loadProject() itself handles the "no data" case (project ==
+  // null): it still calls resetCustomBlocks(), so a fresh project never
+  // carries over "My Blocks" definitions from whatever was open before.
+  function replaceWorkspace(project) {
+    const workspace = workspaceRef.current;
+    if (!workspace) return;
+    loadProject(workspace, project);
+    onCodeChange(generateArduinoCode(workspace));
+    updateIrHoldWarnings(workspace);
+    // Immediate, not debounced -- a kid who loads/clears a project and closes
+    // the laptop before making any further edits should still find it that
+    // way next time, not the state from before.
+    saveAutosave(workspace);
+  }
+
   useImperativeHandle(ref, () => ({
     getSnapshot: () => serializeProject(workspaceRef.current),
-    applyProject: (project) => {
+    applyProject: replaceWorkspace,
+    newProject: () => replaceWorkspace(null),
+    // Lets App.jsx's "New" button skip its confirmation dialog when there's
+    // nothing on the canvas to lose -- getTopBlocks(false) is cheap (no
+    // ordering work) since only presence/absence matters here.
+    isWorkspaceEmpty: () => {
       const workspace = workspaceRef.current;
-      if (!workspace) return;
-      loadProject(workspace, project);
-      onCodeChange(generateArduinoCode(workspace));
-      updateIrHoldWarnings(workspace);
-      // Immediate, not debounced -- a kid who loads a project and closes the
-      // laptop before making any further edits should still find it there
-      // next time, not the state from before the load.
-      saveAutosave(workspace);
+      return !workspace || workspace.getTopBlocks(false).length === 0;
     },
   }));
 

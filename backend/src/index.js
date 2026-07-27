@@ -6,7 +6,7 @@ import https from 'node:https';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compileSketch } from './compile.js';
-import { validateName, saveProjectData, listProjectNames, getProjectByName } from './projects.js';
+import { validateName, saveProjectData, listProjectNames, getProjectByName, deleteProjectByName } from './projects.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -99,6 +99,19 @@ app.get('/api/projects/:name', async (req, res) => {
     return res.json({ success: true, project });
   } catch (err) {
     console.error('Load project error:', err);
+    return res.status(503).json({ success: false, error: 'Could not reach the save service.' });
+  }
+});
+
+app.delete('/api/projects/:name', async (req, res) => {
+  try {
+    const deleted = await deleteProjectByName(req.params.name);
+    if (!deleted) {
+      return res.status(404).json({ success: false, error: 'No saved project with that name.' });
+    }
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Delete project error:', err);
     return res.status(503).json({ success: false, error: 'Could not reach the save service.' });
   }
 });

@@ -6,6 +6,7 @@ import ResizeHandle from './components/ResizeHandle.jsx';
 import SaveDialog from './components/SaveDialog.jsx';
 import LoadDialog from './components/LoadDialog.jsx';
 import ImportCppDialog from './components/ImportCppDialog.jsx';
+import NewProjectDialog from './components/NewProjectDialog.jsx';
 import { saveProject, fetchProject } from './api/projects.js';
 import './App.css';
 
@@ -32,6 +33,7 @@ function App() {
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showLoadDialog, setShowLoadDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showNewDialog, setShowNewDialog] = useState(false);
   const blocklyRef = useRef(null);
 
   function toggleHardwarePanel() {
@@ -76,11 +78,29 @@ function App() {
     blocklyRef.current.applyProject(project);
   }
 
+  // Skips the confirmation dialog when there's nothing on the canvas to
+  // lose -- an empty workspace has no unsaved work a warning would protect.
+  function handleNewClick() {
+    if (blocklyRef.current?.isWorkspaceEmpty()) {
+      blocklyRef.current.newProject();
+      return;
+    }
+    setShowNewDialog(true);
+  }
+
+  function handleConfirmNew() {
+    blocklyRef.current.newProject();
+    setShowNewDialog(false);
+  }
+
   return (
     <div className="app">
       <header className="app-header">
         <h1>Robotics Camp Block IDE</h1>
         <div className="header-actions">
+          <button type="button" className="header-toggle" onClick={handleNewClick}>
+            New
+          </button>
           <button type="button" className="header-toggle" onClick={() => setShowSaveDialog(true)}>
             Save
           </button>
@@ -127,6 +147,7 @@ function App() {
       )}
       {showLoadDialog && <LoadDialog onLoad={handleLoad} onCancel={() => setShowLoadDialog(false)} />}
       {showImportDialog && <ImportCppDialog onImport={handleImport} onCancel={() => setShowImportDialog(false)} />}
+      {showNewDialog && <NewProjectDialog onConfirm={handleConfirmNew} onCancel={() => setShowNewDialog(false)} />}
     </div>
   );
 }

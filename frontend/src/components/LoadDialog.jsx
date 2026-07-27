@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { listProjects } from '../api/projects.js';
+import { listProjects, deleteProject } from '../api/projects.js';
+
+// Speed bump for the delete option below, not real security -- there's no
+// per-kid auth in this app at all, so this is a shared camp-wide password a
+// counselor knows, meant to stop an accidental/curious click from wiping a
+// teammate's save, not a genuine access-control boundary. Checked entirely
+// client-side; the DELETE route itself (backend/src/index.js) takes no
+// password, same as every other route here having no auth.
+const DELETE_PASSWORD = "CalculusIsHard:(";
 
 function formatDate(iso) {
   if (!iso) return '';
@@ -14,11 +22,15 @@ function formatDate(iso) {
 // (picking the wrong entry in a list of 20+ camper names is an easy
 // mistake, and loading discards whatever's unsaved on screen).
 export default function LoadDialog({ onLoad, onCancel }) {
-  const [phase, setPhase] = useState('loading'); // loading | list | confirm | applying | error
+  // loading | list | confirm | applying | error | delete | deleting
+  const [phase, setPhase] = useState('loading');
   const [projects, setProjects] = useState([]);
   const [listError, setListError] = useState('');
   const [selected, setSelected] = useState(null);
   const [applyError, setApplyError] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -50,6 +62,32 @@ export default function LoadDialog({ onLoad, onCancel }) {
     }
   }
 
+  function startDelete(project) {
+    setDeleteTarget(project);
+    setDeletePassword('');
+    setDeleteError('');
+    setPhase('delete');
+  }
+
+  async function confirmDelete(e) {
+    e.preventDefault();
+    if (deletePassword !== DELETE_PASSWORD) {
+      setDeleteError('Incorrect password.');
+      return;
+    }
+    setPhase('deleting');
+    setDeleteError('');
+    try {
+      await deleteProject(deleteTarget.name);
+      setProjects((prev) => prev.filter((p) => p.name !== deleteTarget.name));
+      setDeleteTarget(null);
+      setPhase('list');
+    } catch (err) {
+      setDeleteError(err.message || "Couldn't delete that project.");
+      setPhase('delete');
+    }
+  }
+
   return (
     <div className="modal-overlay" role="presentation" onClick={onCancel}>
       <div
@@ -72,18 +110,28 @@ export default function LoadDialog({ onLoad, onCancel }) {
             ) : (
               <div className="load-list">
                 {projects.map((p) => (
-                  <button
-                    type="button"
-                    key={p.name}
-                    className="load-list-item"
-                    onClick={() => {
-                      setSelected(p);
-                      setPhase('confirm');
-                    }}
-                  >
-                    <span className="load-list-name">{p.name}</span>
-                    <span className="load-list-date">{formatDate(p.updatedAt)}</span>
-                  </button>
+                  <div className="load-list-item" key={p.name}>
+                    <button
+                      type="button"
+                      className="load-list-main"
+                      onClick={() => {
+                        setSelected(p);
+                        setPhase('confirm');
+                      }}
+                    >
+                      <span className="load-list-name">{p.name}</span>
+                      <span className="load-list-date">{formatDate(p.updatedAt)}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="load-list-delete"
+                      aria-label={`Delete ${p.name}`}
+                      title={`Delete ${p.name}`}
+                      onClick={() => startDelete(p)}
+                    >
+                      🗑
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -99,28 +147,66 @@ export default function LoadDialog({ onLoad, onCancel }) {
           </>
         )}
 
-        <div className="modal-actions">
-          {phase === 'confirm' && (
-            <>
-              <button type="button" className="modal-cancel" onClick={() => setPhase('list')}>
-                Back
+        {(phase === 'delete' || phase === 'deleting') && deleteTarget && (
+          <form onSubmit={confirmDelete}>
+            <p>
+              Delete <strong>{deleteTarget.name}</strong>? This can&rsquo;t be undone. Enter the password to confirm.
+            </p>
+            <label className="modal-field">
+              <span>Password</span>
+              <input
+                type="password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                autoFocus
+                disabled={phase === 'deleting'}
+              />
+            </label>
+            {deleteError && <p className="modal-error">{deleteError}</p>}
+
+            <div className="modal-actions">
+              {phase === 'delete' ? (
+                <>
+                  <button type="button" className="modal-cancel" onClick={() => setPhase('list')}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="modal-delete" disabled={!deletePassword}>
+                    Delete
+                  </button>
+                </>
+              ) : (
+                <button type="button" className="modal-delete" disabled>
+                  Deleting…
+                </button>
+              )}
+            </div>
+          </form>
+        )}
+
+        {phase !== 'delete' && phase !== 'deleting' && (
+          <div className="modal-actions">
+            {phase === 'confirm' && (
+              <>
+                <button type="button" className="modal-cancel" onClick={() => setPhase('list')}>
+                  Back
+                </button>
+                <button type="button" className="modal-create" onClick={confirmLoad}>
+                  Load
+                </button>
+              </>
+            )}
+            {phase === 'applying' && (
+              <button type="button" className="modal-create" disabled>
+                Loading…
               </button>
-              <button type="button" className="modal-create" onClick={confirmLoad}>
-                Load
+            )}
+            {(phase === 'loading' || phase === 'list' || phase === 'error') && (
+              <button type="button" className="modal-cancel" onClick={onCancel}>
+                Cancel
               </button>
-            </>
-          )}
-          {phase === 'applying' && (
-            <button type="button" className="modal-create" disabled>
-              Loading…
-            </button>
-          )}
-          {(phase === 'loading' || phase === 'list' || phase === 'error') && (
-            <button type="button" className="modal-cancel" onClick={onCancel}>
-              Cancel
-            </button>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

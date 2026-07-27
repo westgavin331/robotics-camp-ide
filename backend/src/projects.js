@@ -55,3 +55,12 @@ export async function getProjectByName(name) {
   if (!doc) return null;
   return { workspace: doc.workspace, customBlocks: doc.customBlocks };
 }
+
+// Returns true if a project with this name existed and was removed, false
+// if there was nothing to delete (same "already gone" case the frontend
+// treats as a 404, not an error -- see index.js).
+export async function deleteProjectByName(name) {
+  const collection = await getProjectsCollection();
+  const result = await collection.deleteOne({ _id: normalizeName(name) });
+  return result.deletedCount > 0;
+}
