@@ -12,8 +12,11 @@ import {
   updateCustomBlock,
   getCustomBlocks,
   onEditBlockRequested,
+  onDeleteBlockRequested,
+  unregisterCustomBlock,
 } from '../blockly/myBlocks/registry.js';
 import { applyEditCascade } from '../blockly/myBlocks/cascade.js';
+import { findCallSitesElsewhere, disposeAllInstances } from '../blockly/myBlocks/deleteBlock.js';
 import { generateArduinoCode } from '../blockly/generators/arduino/index.js';
 import { updateIrHoldWarnings } from '../blockly/warnings.js';
 import {
@@ -24,6 +27,7 @@ import {
   loadAutosaveIfPresent,
 } from '../blockly/projectIO.js';
 import MakeBlockDialog from './MakeBlockDialog.jsx';
+import DeleteBlockDialog from './DeleteBlockDialog.jsx';
 
 // Blockly.Msg is empty until a locale is loaded -- stock block definitions
 // (controls_if, logic_compare, etc.) read their field labels from it, and
@@ -51,7 +55,7 @@ const REGENERATE_ON = new Set([
 const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, ref) {
   const blocklyDivRef = useRef(null);
   const workspaceRef = useRef(null);
-  // null = closed; {mode: 'create'} | {mode: 'edit', defId}
+  // null = closed; {mode: 'create'} | {mode: 'edit', defId} | {mode: 'delete', defId, usages}
   const [dialogState, setDialogState] = useState(null);
 
   useImperativeHandle(ref, () => ({
@@ -86,6 +90,15 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
     // "define" hat and "call" block types) has no per-instance React access,
     // so it calls back through this module-level bridge instead.
     onEditBlockRequested((defId) => setDialogState({ mode: 'edit', defId }));
+    // Same bridge for "Delete Block" -- usages are computed once, right when
+    // the dialog opens, rather than live in the dialog's render: the modal
+    // overlay blocks workspace interaction while it's open, so the workspace
+    // can't change out from under this snapshot before the kid acts on it.
+    onDeleteBlockRequested((defId) => {
+      const def = getCustomBlocks().find((d) => d.id === defId);
+      const usages = def && workspace ? findCallSitesElsewhere(workspace, def) : [];
+      setDialogState({ mode: 'delete', defId, usages });
+    });
 
     // Same-device safety net: restore before wiring the change listener
     // below, so reconstructing the saved blocks doesn't itself get treated
@@ -135,6 +148,7 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
       workspace.dispose();
       workspaceRef.current = null;
       onEditBlockRequested(null);
+      onDeleteBlockRequested(null);
     };
     // Runs once: workspace is injected imperatively and torn down on unmount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -175,8 +189,41 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
     setDialogState(null);
   }
 
+  // Disposes every workspace instance of this def (its "define" hat --
+  // which per registry.js's dispose override takes its whole body down too
+  // -- plus any stray parameter getters) then unregisters the def itself
+  // (registry.js), so it's gone from the toolbox flyout as well. Only
+  // reachable from the confirm phase of DeleteBlockDialog, which only
+  // offers it when findCallSitesElsewhere() came back empty -- deletion
+  // is never attempted while the block is still in use elsewhere.
+  function handleDeleteConfirm(defId) {
+    const workspace = workspaceRef.current;
+    const def = getCustomBlocks().find((d) => d.id === defId);
+    if (workspace && def) {
+      disposeAllInstances(workspace, def);
+      unregisterCustomBlock(defId);
+      onCodeChange(generateArduinoCode(workspace));
+      updateIrHoldWarnings(workspace);
+      saveAutosave(workspace);
+    }
+    setDialogState(null);
+  }
+
+  // "Show me" on a blocked-deletion usage row -- scrolls/zooms to the call
+  // site and selects it (a lasting highlight, unlike a momentary
+  // highlightBlock flash) so a kid can actually find and remove it.
+  function locateBlock(blockId) {
+    const workspace = workspaceRef.current;
+    const block = workspace?.getBlockById(blockId);
+    if (!block) return;
+    workspace.centerOnBlock(blockId);
+    block.select();
+  }
+
   const editingDef =
     dialogState?.mode === 'edit' ? getCustomBlocks().find((d) => d.id === dialogState.defId) : null;
+  const deletingDef =
+    dialogState?.mode === 'delete' ? getCustomBlocks().find((d) => d.id === dialogState.defId) : null;
 
   return (
     <>
@@ -186,6 +233,15 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
         <MakeBlockDialog
           initial={editingDef}
           onSubmit={(spec) => handleEditSave(dialogState.defId, spec)}
+          onCancel={() => setDialogState(null)}
+        />
+      )}
+      {dialogState?.mode === 'delete' && deletingDef && (
+        <DeleteBlockDialog
+          def={deletingDef}
+          usages={dialogState.usages}
+          onLocate={locateBlock}
+          onConfirm={() => handleDeleteConfirm(dialogState.defId)}
           onCancel={() => setDialogState(null)}
         />
       )}

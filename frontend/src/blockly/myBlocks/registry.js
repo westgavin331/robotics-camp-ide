@@ -83,9 +83,14 @@ const customBlocks = [];
 // simple module-level slot instead. There's only ever one workspace in this
 // app, so a singleton is fine (see onEditBlockRequested below).
 let editRequestHandler = null;
+let deleteRequestHandler = null;
 
 export function onEditBlockRequested(handler) {
   editRequestHandler = handler;
+}
+
+export function onDeleteBlockRequested(handler) {
+  deleteRequestHandler = handler;
 }
 
 export function getCustomBlocks() {
@@ -182,6 +187,20 @@ function editBlockMenuItem(def) {
   };
 }
 
+// Labeled "Delete Custom Block", not just "Delete Block" -- Blockly's own
+// stock context menu already has a "Delete Block"/"Delete N Blocks" entry
+// (for removing just this one instance), which our unshift leaves in place
+// alongside this one. Two same-looking "Delete Block" entries with very
+// different scope -- one instance vs. every trace of the reusable block,
+// including the toolbox entry -- would be a confusing pick for a kid.
+function deleteBlockMenuItem(def) {
+  return {
+    text: 'Delete Custom Block',
+    enabled: true,
+    callback: () => deleteRequestHandler && deleteRequestHandler(def.id),
+  };
+}
+
 // Builds the imperative "define" and "call" Blockly block types for a brand
 // new custom block record and wires up their Arduino generators. Both
 // generators close over `def` itself and read `def.name`/`def.params`/
@@ -200,7 +219,27 @@ function registerDefineAndCallTypes(def) {
       layoutDefineBlock(this, def);
     },
     customContextMenu(options) {
-      options.unshift(editBlockMenuItem(def));
+      options.unshift(editBlockMenuItem(def), deleteBlockMenuItem(def));
+    },
+    // Since the body hangs off this hat's *next* connection rather than a
+    // nested input (see the init() comment above), Blockly's default delete
+    // path -- trash-can drag, the Delete key, the stock "Delete Block" menu
+    // item -- calls dispose(healStack=true), which tries to reconnect the
+    // next block to whatever was connected above this one instead of
+    // disposing it (the usual "delete one block out of the middle of a
+    // stack without losing the rest" behavior). A hat has no previous
+    // connection to reconnect to, so that heal silently does nothing and
+    // the whole body was left behind as disconnected orphan blocks. A
+    // "define" hat's body isn't a stack that continues past it -- it *is*
+    // the definition -- so deleting it by any means always has to take the
+    // body down too. Object.getPrototypeOf(this) is BlockSvg.prototype (or
+    // Block.prototype for a non-rendered instance); calling its real
+    // dispose with healStack forced false disposes this block and every
+    // child, per getChildren()'s own doc ("value and statement inputs, as
+    // well as any following statement").
+    dispose(healStack) {
+      void healStack;
+      Object.getPrototypeOf(this).dispose.call(this, false);
     },
   };
 
@@ -217,7 +256,7 @@ function registerDefineAndCallTypes(def) {
       }
     },
     customContextMenu(options) {
-      options.unshift(editBlockMenuItem(def));
+      options.unshift(editBlockMenuItem(def), deleteBlockMenuItem(def));
     },
   };
 
@@ -359,6 +398,34 @@ export function updateCustomBlock(defId, { name, params }) {
   const def = customBlocks.find((d) => d.id === defId);
   const diff = applyDefinitionUpdate(def, { name, params });
   return { def, diff };
+}
+
+// Removes a single custom block's definition from the registry entirely --
+// the data-model half of "Delete Block" (myBlocks/deleteBlock.js is the
+// other half, which sweeps the actual workspace instances). Unlike
+// resetCustomBlocks below, this *does* unregister the Blockly.Blocks/
+// generator entries for this one def's define/call/getter types, since a
+// kid deleting a single block expects it gone for good -- including from
+// the toolbox flyout, which reads getCustomBlocks() fresh every time it
+// opens (toolboxCategory.js) and so reflects the removal immediately.
+// Callers are expected to have already disposed every workspace instance
+// of this def (deleteBlock.js's disposeAllInstances) before calling this.
+export function unregisterCustomBlock(defId) {
+  const idx = customBlocks.findIndex((d) => d.id === defId);
+  if (idx === -1) return null;
+  const [def] = customBlocks.splice(idx, 1);
+
+  delete Blockly.Blocks[def.defineType];
+  delete Blockly.Blocks[def.callType];
+  delete arduinoGenerator.forBlock[def.defineType];
+  delete arduinoGenerator.forBlock[def.callType];
+  for (const p of def.params) {
+    const getterType = paramGetterType(def.id, p.id);
+    delete Blockly.Blocks[getterType];
+    delete arduinoGenerator.forBlock[getterType];
+  }
+  if (def.cName) usedIdentifiers.delete(def.cName.toLowerCase());
+  return def;
 }
 
 // Wipes every custom block this session knows about -- called by

@@ -524,6 +524,65 @@
   cursor: not-allowed;
 }
 
+.modal-delete {
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 14px;
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: 22px;
+  cursor: pointer;
+  border: 2px solid #b91c1c;
+  background: #dc2626;
+  color: white;
+}
+
+.modal-delete:hover {
+  filter: brightness(1.05);
+}
+
+.usage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.usage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  font-family: var(--sans);
+  font-size: 14px;
+}
+
+.usage-locate-btn {
+  flex-shrink: 0;
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 13px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 16px;
+  border: 2px solid var(--accent-border);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.usage-locate-btn:hover {
+  background: var(--accent-bg);
+}
+
 .modal-success {
   margin: 0 0 16px;
   font-size: 14px;
