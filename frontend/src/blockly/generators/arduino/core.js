@@ -63,6 +63,12 @@ arduinoGenerator.init = function init(workspace) {
   this.functions_ = Object.create(null);
   // Lines contributed to setup(), keyed the same way as definitions_.
   this.setups_ = Object.create(null);
+  // Lines contributed to the very top of loop(), before any of the kid's
+  // own blocks -- keyed the same way as definitions_/setups_, so a reporter
+  // block used many times in one program (e.g. "held IR command" compared
+  // against several values in an if/else-if chain) only registers its
+  // once-per-tick bookkeeping once. See addLoopTop().
+  this.loopTops_ = Object.create(null);
 
   this.nameDB_ = new Blockly.Names([...RESERVED_WORDS_LIST, ...dynamicReservedWords].join(','));
   this.nameDB_.setVariableMap(workspace.getVariableMap());
@@ -84,6 +90,16 @@ arduinoGenerator.addInclude = function addInclude(key, includeLine) {
 
 arduinoGenerator.addSetup = function addSetup(key, line) {
   this.setups_[key] = line;
+};
+
+// Registers a statement to run at the very top of loop(), once per
+// generated sketch regardless of how many blocks call this with the same
+// key -- for per-tick bookkeeping (e.g. polling a sensor's decode() method
+// once and caching the result) that a reporter block needs to have happened
+// before it can just read a tracked variable, even when that reporter is
+// used multiple times in the same program.
+arduinoGenerator.addLoopTop = function addLoopTop(key, line) {
+  this.loopTops_[key] = line;
 };
 
 // Hoists a `pinMode(pin, mode)` call to setup() when the pin is a literal
@@ -117,6 +133,7 @@ arduinoGenerator.finish = function finish(setupCode, loopCode) {
   const definitions = Object.values(this.definitions_);
   const functions = Object.values(this.functions_);
   const hoistedSetupLines = Object.values(this.setups_);
+  const hoistedLoopTopLines = Object.values(this.loopTops_);
 
   const includesText = includes.length ? `${includes.join('\n')}\n\n` : '';
   const defsText = definitions.length ? `${definitions.join('\n')}\n\n` : '';
@@ -134,8 +151,14 @@ arduinoGenerator.finish = function finish(setupCode, loopCode) {
   const setupBody = fullSetupCode ? this.prefixLines(fullSetupCode, this.INDENT) : '';
   // loopCode comes from statementToCode() (see generateArduinoCode below),
   // which already indents its result one level for use inside braces --
-  // indenting it again here would double it up.
-  const loopBody = loopCode;
+  // indenting it again here would double it up. Loop-top lines aren't
+  // pre-indented (they're plain strings registered via addLoopTop()), so
+  // they're indented here, the same way hoisted setup lines are indented
+  // together with setupCode above.
+  const loopTopBody = hoistedLoopTopLines.length
+    ? this.prefixLines(`${hoistedLoopTopLines.join('\n')}\n`, this.INDENT)
+    : '';
+  const loopBody = loopTopBody + loopCode;
 
   return (
     `${includesText}${defsText}${functionsText}` +

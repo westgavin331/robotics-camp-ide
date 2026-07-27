@@ -58,4 +58,12 @@ Blockly.defineBlocksWithJsonArray([
     style: 'camp_ir_blocks',
     tooltip: 'True if the most recently received signal was a repeat (e.g. a button held down).',
   },
+  {
+    type: 'ir_held_command',
+    message0: 'held IR command',
+    output: 'Number',
+    style: 'camp_ir_blocks',
+    tooltip:
+      "The command byte of the most recently received IR signal, or 0 if no signal has arrived recently (the button was released). Replaces the by-hand pattern of tracking a last-command variable and an idle-timeout counter yourself -- use this instead of 'get IR code' when you want to know what's currently being held down.",
+  },
 ]);
