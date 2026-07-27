@@ -22,6 +22,16 @@ import * as Blockly from 'blockly/core';
 export function registerVariablesCategory(workspace) {
   workspace.registerToolboxCategoryCallback('VARIABLES_WITH_CHANGE', (ws) => {
     const flyoutItems = Blockly.Variables.flyoutCategory(ws);
+    // Blockly.Variables.flyoutCategory() fills in the VAR field on
+    // "set [var] to ___" but leaves the VALUE input's socket empty, unlike
+    // every other typeable input in this app -- add the same plain
+    // math_number shadow used elsewhere (e.g. math_change's DELTA below) so
+    // it's directly typeable instead of requiring a block to be dragged in.
+    for (const item of flyoutItems) {
+      if (item.kind === 'block' && item.type === 'variables_set') {
+        item.inputs = { VALUE: { shadow: { type: 'math_number', fields: { NUM: 0 } } } };
+      }
+    }
     flyoutItems.push({
       kind: 'block',
       type: 'math_change',

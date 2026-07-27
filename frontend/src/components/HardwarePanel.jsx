@@ -22,7 +22,7 @@ function friendlyMessage(stage, err) {
 
   if (stage === 'connect') {
     if (err?.name === 'NotFoundError') {
-      return "No board was selected. Click Run and choose your Arduino from the list that pops up.";
+      return "No board was selected. Click Upload Code and choose your Arduino from the list that pops up.";
     }
     return "Couldn't connect to a board. Make sure it's plugged in, then try again.";
   }
@@ -230,12 +230,12 @@ export default function HardwarePanel({ code, width }) {
 
   const running = runStage === 'connecting' || runStage === 'compiling' || runStage === 'uploading';
   const runLabel = {
-    idle: 'Run',
+    idle: 'Upload Code',
     connecting: 'Connecting…',
     compiling: 'Building…',
     uploading: 'Sending to board…',
-    done: 'Run',
-    error: 'Run',
+    done: 'Upload Code',
+    error: 'Upload Code',
   }[runStage];
   const banner = {
     connecting: { tone: 'info', text: '🔌 Looking for your board…' },
@@ -316,7 +316,7 @@ export default function HardwarePanel({ code, width }) {
           <div className="serial-monitor-lines" ref={monitorLinesRef}>
             {monitorLines.length === 0 && (
               <div className="build-line">
-                {monitoring ? 'Waiting for messages from your board…' : 'Run your code to see messages here.'}
+                {monitoring ? 'Waiting for messages from your board…' : 'Upload your code to see messages here.'}
               </div>
             )}
             {monitorLines.map((line, i) => (
