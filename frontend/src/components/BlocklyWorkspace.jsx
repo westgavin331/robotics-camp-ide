@@ -7,7 +7,13 @@ import { toolbox } from '../blockly/toolbox.js';
 import { scratchTheme } from '../blockly/theme.js';
 import { registerVariablesCategory } from '../blockly/registerVariablesCategory.js';
 import { registerMyBlocksCategory } from '../blockly/myBlocks/toolboxCategory.js';
-import { registerCustomBlock, getCustomBlocks } from '../blockly/myBlocks/registry.js';
+import {
+  registerCustomBlock,
+  updateCustomBlock,
+  getCustomBlocks,
+  onEditBlockRequested,
+} from '../blockly/myBlocks/registry.js';
+import { applyEditCascade } from '../blockly/myBlocks/cascade.js';
 import { generateArduinoCode } from '../blockly/generators/arduino/index.js';
 import MakeBlockDialog from './MakeBlockDialog.jsx';
 
@@ -31,7 +37,8 @@ const REGENERATE_ON = new Set([
 export default function BlocklyWorkspace({ onCodeChange }) {
   const blocklyDivRef = useRef(null);
   const workspaceRef = useRef(null);
-  const [showMakeBlockDialog, setShowMakeBlockDialog] = useState(false);
+  // null = closed; {mode: 'create'} | {mode: 'edit', defId}
+  const [dialogState, setDialogState] = useState(null);
 
   useEffect(() => {
     const workspace = Blockly.inject(blocklyDivRef.current, {
@@ -45,7 +52,11 @@ export default function BlocklyWorkspace({ onCodeChange }) {
     workspaceRef.current = workspace;
 
     registerVariablesCategory(workspace);
-    registerMyBlocksCategory(workspace, () => setShowMakeBlockDialog(true));
+    registerMyBlocksCategory(workspace, () => setDialogState({ mode: 'create' }));
+    // Right-click "Edit Block" (registry.js's customContextMenu, on both the
+    // "define" hat and "call" block types) has no per-instance React access,
+    // so it calls back through this module-level bridge instead.
+    onEditBlockRequested((defId) => setDialogState({ mode: 'edit', defId }));
 
     const regenerate = (event) => {
       if (!REGENERATE_ON.has(event.type)) return;
@@ -77,6 +88,7 @@ export default function BlocklyWorkspace({ onCodeChange }) {
       resizeObserver.disconnect();
       workspace.dispose();
       workspaceRef.current = null;
+      onEditBlockRequested(null);
     };
     // Runs once: workspace is injected imperatively and torn down on unmount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -86,7 +98,7 @@ export default function BlocklyWorkspace({ onCodeChange }) {
   // "define" hat onto the canvas, same as Scratch/mBlock do right after
   // "Make a Block" -- the kid lands straight on the empty definition ready
   // to drag blocks into it, rather than having to go find it in the flyout.
-  function handleCreateBlock(spec) {
+  function handleCreate(spec) {
     const workspace = workspaceRef.current;
     const def = registerCustomBlock(spec);
     if (workspace) {
@@ -94,20 +106,38 @@ export default function BlocklyWorkspace({ onCodeChange }) {
       block.initSvg();
       block.render();
       block.moveBy(480, 30 + (getCustomBlocks().length - 1) * 160);
-      // Belt-and-suspenders: newBlock() should already fire a BLOCK_CREATE
-      // event the regenerate() listener above reacts to, but the new
-      // function needs to show up in View Code immediately regardless of
-      // that internal Blockly behaviour, not on the next unrelated edit.
       onCodeChange(generateArduinoCode(workspace));
     }
-    setShowMakeBlockDialog(false);
+    setDialogState(null);
   }
+
+  // Updates the def in place (registry.js), then reshapes every already-
+  // placed instance -- define hat(s), call blocks, parameter getters -- to
+  // match (cascade.js). Freshly-dragged flyout instances need no cascade;
+  // they already read the live def at construction time.
+  function handleEditSave(defId, spec) {
+    const workspace = workspaceRef.current;
+    const { def, diff } = updateCustomBlock(defId, spec);
+    if (workspace) {
+      applyEditCascade(workspace, def, diff);
+      onCodeChange(generateArduinoCode(workspace));
+    }
+    setDialogState(null);
+  }
+
+  const editingDef =
+    dialogState?.mode === 'edit' ? getCustomBlocks().find((d) => d.id === dialogState.defId) : null;
 
   return (
     <>
       <div ref={blocklyDivRef} className="blockly-workspace" />
-      {showMakeBlockDialog && (
-        <MakeBlockDialog onCreate={handleCreateBlock} onCancel={() => setShowMakeBlockDialog(false)} />
+      {dialogState?.mode === 'create' && <MakeBlockDialog onSubmit={handleCreate} onCancel={() => setDialogState(null)} />}
+      {dialogState?.mode === 'edit' && editingDef && (
+        <MakeBlockDialog
+          initial={editingDef}
+          onSubmit={(spec) => handleEditSave(dialogState.defId, spec)}
+          onCancel={() => setDialogState(null)}
+        />
       )}
     </>
   );

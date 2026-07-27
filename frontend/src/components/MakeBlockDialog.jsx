@@ -7,19 +7,30 @@ const PARAM_TYPES = [
 ];
 
 let paramKeySeq = 0;
-function newParam() {
+// `origId` tracks identity back to registry.js's param records across an
+// edit -- null for a row that didn't exist before this dialog session (a
+// fresh "+ Add an input" row, in either create or edit mode), or an
+// existing param's id when prefilled from `initial` for editing. Only
+// registry.js's updateCustomBlock reads it; create mode ignores it (every
+// row is necessarily new there).
+function newParam(origId = null, name = '', type = 'number') {
   paramKeySeq += 1;
-  return { key: paramKeySeq, name: '', type: 'number' };
+  return { key: paramKeySeq, origId, name, type };
 }
 
-// "Make a Block" (mBlock/Scratch's own name for this dialog): name the new
-// block, add typed inputs, and hand the result up to BlocklyWorkspace, which
-// owns the actual workspace instance needed to register the block types and
-// drop a fresh "define" hat onto the canvas (see registry.js/
-// toolboxCategory.js for why the type-registration side lives there).
-export default function MakeBlockDialog({ onCreate, onCancel }) {
-  const [name, setName] = useState('');
-  const [params, setParams] = useState([]);
+// "Make a Block" (mBlock/Scratch's own name for this dialog), reused for
+// "Edit Block" (see registry.js's customContextMenu) -- passing `initial`
+// pre-fills the name/params from an existing custom block and switches the
+// copy/submit label, but the form itself is identical either way.
+// BlocklyWorkspace owns the actual workspace instance needed to register
+// (or, when editing, reshape) the Blockly block types and cascade the
+// change to already-placed instances -- see registry.js/cascade.js.
+export default function MakeBlockDialog({ initial, onSubmit, onCancel }) {
+  const isEditing = Boolean(initial);
+  const [name, setName] = useState(initial?.name ?? '');
+  const [params, setParams] = useState(() =>
+    (initial?.params ?? []).map((p) => newParam(p.id, p.name, p.type)),
+  );
   const [error, setError] = useState('');
 
   function updateParam(key, patch) {
@@ -41,7 +52,7 @@ export default function MakeBlockDialog({ onCreate, onCancel }) {
       setError('Give your block a name.');
       return;
     }
-    const trimmedParams = params.map((p) => ({ name: p.name.trim(), type: p.type }));
+    const trimmedParams = params.map((p) => ({ origId: p.origId, name: p.name.trim(), type: p.type }));
     if (trimmedParams.some((p) => !p.name)) {
       setError('Every input needs a name.');
       return;
@@ -51,7 +62,7 @@ export default function MakeBlockDialog({ onCreate, onCancel }) {
       setError('Give each input a different name.');
       return;
     }
-    onCreate({ name: trimmedName, params: trimmedParams });
+    onSubmit({ name: trimmedName, params: trimmedParams });
   }
 
   return (
@@ -60,10 +71,10 @@ export default function MakeBlockDialog({ onCreate, onCancel }) {
         className="modal-card"
         role="dialog"
         aria-modal="true"
-        aria-label="Make a Block"
+        aria-label={isEditing ? 'Edit Block' : 'Make a Block'}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="modal-title">Make a Block</h2>
+        <h2 className="modal-title">{isEditing ? 'Edit Block' : 'Make a Block'}</h2>
         <form onSubmit={handleSubmit}>
           <label className="modal-field">
             <span>Block name</span>
@@ -118,7 +129,7 @@ export default function MakeBlockDialog({ onCreate, onCancel }) {
               Cancel
             </button>
             <button type="submit" className="modal-create">
-              Create Block
+              {isEditing ? 'Save Changes' : 'Create Block'}
             </button>
           </div>
         </form>
