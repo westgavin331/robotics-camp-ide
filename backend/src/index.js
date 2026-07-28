@@ -6,20 +6,39 @@ import https from 'node:https';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compileSketch } from './compile.js';
+import { createCompileQueue } from './compileQueue.js';
 import { validateName, saveProjectData, listProjectNames, getProjectByName, deleteProjectByName } from './projects.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Defaults to strictly one compile at a time -- Render's free web service
+// tier is 512MB RAM / 0.1 CPU (render.com/docs/free), and each compile is a
+// real arduino-cli/avr-gcc subprocess burst (see compileQueue.js). Override
+// via env var once/if this ever moves to a paid instance with real
+// multi-core headroom to actually run more than one at once.
+const COMPILE_CONCURRENCY = Number(process.env.COMPILE_CONCURRENCY) || 1;
+const enqueueCompile = createCompileQueue(COMPILE_CONCURRENCY);
+
 // Same mkcert cert/key pair the frontend (vite.config.js) uses, one level
 // further up from here (backend/src -> backend -> repo root). WebSerial
 // requires a secure context, and once the frontend is HTTPS, the browser
 // blocks it from calling a plain-HTTP backend as mixed content -- so this
-// has to be HTTPS too, sharing the same cert.
+// has to be HTTPS too, sharing the same cert, for *local* LAN testing.
+//
+// Only ever looked for outside production: this pair is gitignored, local-
+// only private key material tied to one Mac's old LAN IP, and Render's
+// backend/Dockerfile sets NODE_ENV=production -- Render terminates real,
+// browser-trusted HTTPS itself at its edge and forwards plain HTTP to the
+// container, so it never needs (or has) this local cert, and shouldn't
+// even check for it. Matches the same NODE_ENV-gated pattern
+// frontend/vite.config.js already uses for its own (separate) copy of this
+// same cert-lookup, for the same reason.
 const repoRoot = path.resolve(fileURLToPath(new URL('.', import.meta.url)), '../..');
 const certFile = path.join(repoRoot, '10.66.160.89+1.pem');
 const keyFile = path.join(repoRoot, '10.66.160.89+1-key.pem');
-const hasCerts = fs.existsSync(certFile) && fs.existsSync(keyFile);
+const hasCerts =
+  process.env.NODE_ENV !== 'production' && fs.existsSync(certFile) && fs.existsSync(keyFile);
 
 // CORS stays wide open (no origin allowlist) -- already true before this
 // change, and an https:// origin doesn't need anything different from an
@@ -42,7 +61,7 @@ app.post('/api/compile', async (req, res) => {
   }
 
   try {
-    const result = await compileSketch(code);
+    const result = await enqueueCompile(() => compileSketch(code));
     if (result.ok) {
       return res.json({ success: true, hex: result.hex, size: result.size });
     }
@@ -126,8 +145,10 @@ if (hasCerts) {
   });
 } else {
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(
-      `Backend listening on http://localhost:${PORT} (no cert found at ${certFile}, falling back to plain HTTP)`,
-    );
+    const reason =
+      process.env.NODE_ENV === 'production'
+        ? 'production -- Render terminates real HTTPS at its edge'
+        : `no local cert found at ${certFile}`;
+    console.log(`Backend listening on http://0.0.0.0:${PORT} (plain HTTP: ${reason})`);
   });
 }

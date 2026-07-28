@@ -46,6 +46,8 @@ backend/
   src/compile.js            arduino-cli pipeline: writes the sketch to a temp dir,
                              runs `arduino-cli compile`, parses JSON output into a
                              clean result (hex + size, or a diagnostics list)
+  src/compileQueue.js       Caps concurrent arduino-cli invocations (default 1 --
+                             Render free tier is 512MB/0.1 CPU)
 ```
 
 Adding a new block type means: add its JSON definition to a `blocks/*.js` file
@@ -146,7 +148,19 @@ environment, documented here for setting up elsewhere):
 To set this up on another machine: install arduino-cli, then run
 `arduino-cli core install arduino:avr` and `arduino-cli lib install
 "IRremote"`. Environment overrides: `ARDUINO_CLI_PATH`, `ARDUINO_FQBN`
-(default `arduino:avr:uno`), `COMPILE_TIMEOUT_MS` (default 30000).
+(default `arduino:avr:uno`), `COMPILE_TIMEOUT_MS` (default 30000),
+`COMPILE_CONCURRENCY` (default 1).
+
+**`COMPILE_CONCURRENCY`**: every `/api/compile` request is queued through
+`compileQueue.js`, which only lets this many `arduino-cli` invocations
+actually run at once (the rest wait their turn instead of firing all
+together). Defaults to 1 because Render's free web service tier is only
+512MB RAM / 0.1 CPU (confirmed against render.com/docs/free) — a class-sized
+burst of kids clicking Run at the same moment, each spawning a real
+avr-gcc-toolchain subprocess with no limit in place, was enough to starve
+that sliver of CPU and make the whole service (not just `/api/compile`)
+briefly unreachable for everyone. Only worth raising if this ever moves to a
+paid instance with real multi-core headroom.
 
 ## Upload & Serial Monitor
 
