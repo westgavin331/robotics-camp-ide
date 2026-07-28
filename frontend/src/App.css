@@ -70,34 +70,38 @@
   box-shadow: var(--card-shadow);
 }
 
-/* Small arrow control docked at the boundary between the category sidebar
-   and the block canvas -- slides the whole sidebar out of view (and back)
-   to reclaim width for the canvas. Its `left` position is set inline in
-   BlocklyWorkspace.jsx (tracks the toolbox's measured width), so only the
-   transition and static look live here; that same inline `left` change is
-   what this transition animates. */
-.sidebar-toggle {
+/* Small arrow control that shows/hides the currently-open category's block
+   flyout -- the toolbox column (Basic I/O, Sensors, etc.) is never affected
+   by this and never moves. Docked in the toolbox's own empty space below
+   the category list (its `left` is set inline in BlocklyWorkspace.jsx,
+   centred on the toolbox's measured width) rather than at the toolbox/
+   flyout boundary: a flyout can be much wider than the toolbox depending on
+   the category's blocks, so a button sitting right on that boundary would
+   end up on top of (and blocking clicks on) whatever block happens to be
+   flush against it. Sitting inside the toolbox's own footprint instead
+   guarantees it never overlaps flyout content, regardless of width. */
+.flyout-toggle {
   position: absolute;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  bottom: 16px;
+  transform: translateX(-50%);
   z-index: 95;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   padding: 0;
-  border-radius: 10px;
+  border-radius: 12px;
   border: 2px solid var(--accent-border);
   background: rgba(255, 255, 255, 0.92);
   color: var(--accent);
-  font-size: 14px;
+  font-size: 15px;
   cursor: pointer;
   box-shadow: var(--card-shadow);
-  transition: left 220ms ease, filter 0.15s ease;
+  transition: filter 0.15s ease;
 }
 
-.sidebar-toggle:hover {
+.flyout-toggle:hover {
   filter: brightness(1.05);
 }
 
@@ -107,15 +111,6 @@
 
 .blockly-workspace .blocklyToolbox {
   padding: 10px 6px;
-  overflow: hidden;
-  /* Duration must match SIDEBAR_TRANSITION_MS in BlocklyWorkspace.jsx --
-     that's how long it waits before telling Blockly the toolbox is actually
-     hidden/visible and recomputing workspace layout. */
-  transition: width 220ms ease, opacity 180ms ease;
-}
-
-.blockly-workspace .blocklyToolbox.is-collapsed {
-  opacity: 0;
 }
 
 .blockly-workspace .blocklyToolboxCategory {

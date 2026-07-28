@@ -60,13 +60,15 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
   const workspaceRef = useRef(null);
   // null = closed; {mode: 'create'} | {mode: 'edit', defId} | {mode: 'delete', defId, usages}
   const [dialogState, setDialogState] = useState(null);
-  // Session-only (resets on reload): whether the category sidebar is
-  // slid out of view to reclaim width for the block canvas.
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  // Toolbox's natural rendered width in px, measured once after inject --
-  // needed (as state, so the toggle button's position re-renders once this
-  // is known) so the collapse/expand animation below has an explicit pixel
-  // value to transition to/from ("auto" doesn't transition).
+  // Session-only (resets on reload): whether the currently-open category's
+  // block flyout is hidden. The category list itself (Basic I/O, Sensors,
+  // etc.) is never affected by this -- only the flyout of draggable blocks
+  // that pops out next to it.
+  const [flyoutCollapsed, setFlyoutCollapsed] = useState(false);
+  // Toolbox's rendered width in px, measured once after inject, purely to
+  // dock the toggle arrow at its right edge (the toolbox itself never
+  // resizes, so this is a one-time measurement, not tracked state that
+  // needs to stay in sync with anything).
   const [toolboxWidth, setToolboxWidth] = useState(0);
 
   // Shared by applyProject (a real Load) and newProject (New button) below --
@@ -116,15 +118,11 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
     // created"), not a custom workaround.
     workspace.getFlyout()?.setAutoClose(false);
 
-    // Locks in an explicit pixel width on the toolbox's own DOM node (its
-    // natural width is otherwise content-driven/"auto", which CSS can't
-    // transition) so toggleSidebar() below has a real px-to-px value to
-    // animate between when collapsing/expanding.
+    // Measured purely to center the flyout-toggle arrow under the toolbox
+    // column (see App.css) -- the toolbox itself is never resized here.
     const toolboxEl = workspace.getToolbox()?.HtmlDiv;
     if (toolboxEl) {
-      const width = toolboxEl.getBoundingClientRect().width;
-      toolboxEl.style.width = `${width}px`;
-      setToolboxWidth(width);
+      setToolboxWidth(toolboxEl.getBoundingClientRect().width);
     }
 
     registerVariablesCategory(workspace);
@@ -158,6 +156,13 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
     }
 
     const regenerate = (event) => {
+      if (event.type === Blockly.Events.TOOLBOX_ITEM_SELECT) {
+        // Clicking a category always opens its flyout (normal Blockly
+        // behaviour, independent of the arrow button) -- resync so the
+        // arrow's icon never claims "flyout hidden" when it's actually open.
+        setFlyoutCollapsed(false);
+        return;
+      }
       if (!REGENERATE_ON.has(event.type)) return;
       onCodeChange(generateArduinoCode(workspace));
       updateIrHoldWarnings(workspace);
@@ -197,52 +202,27 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Milliseconds the CSS width/opacity transition on .blocklyToolbox takes
-  // (see App.css) -- kept as one constant so the two stay in sync, since the
-  // Blockly-side bookkeeping below (setVisible/resize) must only happen
-  // after the slide finishes, not mid-animation.
-  const SIDEBAR_TRANSITION_MS = 220;
-
-  // Slides the category sidebar out of/into view. Blockly's own
-  // Toolbox.setVisible() is a hard display:none/block toggle with no
-  // transition, so the actual sliding is plain CSS on the toolbox's own DOM
-  // node (toolboxEl.style.width, set to an explicit px value above); this
-  // just choreographs that CSS change around Blockly's own visibility/layout
-  // bookkeeping so neither fights the other:
-  //  - collapse: close any open flyout (nothing to show against a hidden
-  //    sidebar), start the CSS slide-out, then once it's finished tell
-  //    Blockly the toolbox is actually hidden and let it recompute layout
-  //    (workspace.resize()) so the canvas reclaims the freed width.
-  //  - expand: tell Blockly the toolbox is visible again *first* (so the
-  //    element is display:block, not display:none, before we try to
-  //    transition it -- a transition can't play on a non-rendered element),
-  //    force a layout flush so that starting state is actually registered,
-  //    then start the CSS slide-in and resize again once it's finished.
-  function toggleSidebar() {
+  // Shows/hides the currently-open category's flyout -- the toolbox (Basic
+  // I/O, Sensors, etc.) is never touched here, only the flyout of draggable
+  // blocks next to it.
+  //  - collapse: just hide it (Flyout.hide()).
+  //  - expand: Toolbox.refreshSelection() re-shows whatever category is
+  //    still selected without needing a fresh category click -- it's a
+  //    no-op if nothing was ever selected. Selection itself (which category
+  //    is "current") lives on the toolbox and is untouched by hide(), so
+  //    this reopens the same one that was showing before collapse.
+  function toggleFlyout() {
     const workspace = workspaceRef.current;
     const toolbox = workspace?.getToolbox();
-    const toolboxEl = toolbox?.HtmlDiv;
-    if (!workspace || !toolbox || !toolboxEl) return;
+    if (!toolbox) return;
 
-    const collapsing = !sidebarCollapsed;
-    setSidebarCollapsed(collapsing);
+    const collapsing = !flyoutCollapsed;
+    setFlyoutCollapsed(collapsing);
 
     if (collapsing) {
       toolbox.getFlyout()?.hide();
-      toolboxEl.classList.add('is-collapsed');
-      toolboxEl.style.width = '0px';
-      window.setTimeout(() => {
-        toolbox.setVisible(false);
-        workspace.resize();
-      }, SIDEBAR_TRANSITION_MS);
     } else {
-      toolbox.setVisible(true);
-      void toolboxEl.offsetWidth; // force layout flush -- see comment above
-      toolboxEl.classList.remove('is-collapsed');
-      toolboxEl.style.width = `${toolboxWidth}px`;
-      window.setTimeout(() => {
-        workspace.resize();
-      }, SIDEBAR_TRANSITION_MS);
+      toolbox.refreshSelection();
     }
   }
 
@@ -323,13 +303,13 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
         <div ref={blocklyDivRef} className="blockly-workspace" />
         <button
           type="button"
-          className={`sidebar-toggle${sidebarCollapsed ? ' is-collapsed' : ''}`}
-          style={{ left: sidebarCollapsed ? 0 : toolboxWidth }}
-          aria-expanded={!sidebarCollapsed}
-          title={sidebarCollapsed ? 'Show block categories' : 'Hide block categories'}
-          onClick={toggleSidebar}
+          className={`flyout-toggle${flyoutCollapsed ? ' is-collapsed' : ''}`}
+          style={{ left: toolboxWidth / 2 }}
+          aria-expanded={!flyoutCollapsed}
+          title={flyoutCollapsed ? 'Show blocks' : 'Hide blocks'}
+          onClick={toggleFlyout}
         >
-          <span aria-hidden="true">{sidebarCollapsed ? '▶' : '◀'}</span>
+          <span aria-hidden="true">{flyoutCollapsed ? '▶' : '◀'}</span>
         </button>
       </div>
       {dialogState?.mode === 'create' && <MakeBlockDialog onSubmit={handleCreate} onCancel={() => setDialogState(null)} />}
