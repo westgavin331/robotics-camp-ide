@@ -115,10 +115,16 @@ export const scratchTheme = Blockly.Theme.defineTheme('scratch_style', {
     camp_myblocks_hat_blocks: { ...styleFrom(CATEGORY_COLOURS.myBlocks), hat: 'cap' },
   },
   componentStyles: {
-    workspaceBackgroundColour: '#F5F7FB',
-    // Same tone as the workspace so the toolbox reads as one calm canvas
-    // rather than a visibly separate grey panel (Blockly's own default).
-    toolboxBackgroundColour: '#F5F7FB',
+    // Noticeably tinted relative to flyoutBackgroundColour's crisp white
+    // below -- with the two nearly identical, Blockly's own (already
+    // correctly content-sized -- see fixedScaleFlyout.js's constructor
+    // comment) flyout had no visible edge, so a small, tightly-fit flyout
+    // for a short category read as "one big blank panel" with its block
+    // floating in the corner. The toolbox matches this tone (not the
+    // flyout's white) so it still reads as one calm surface with the
+    // workspace, just one now visibly distinct from the flyout on top of it.
+    workspaceBackgroundColour: '#E7EAF3',
+    toolboxBackgroundColour: '#E7EAF3',
     toolboxForegroundColour: '#3D3A45',
     flyoutBackgroundColour: '#FFFFFF',
     flyoutForegroundColour: '#6b6375',

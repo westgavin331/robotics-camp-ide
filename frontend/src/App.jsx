@@ -56,14 +56,15 @@ function App() {
     });
   }
 
-  // The handle sits between the code view (left) and hardware panel
-  // (right), so its own movement should grow one exactly as much as it
-  // shrinks the other -- the Blockly canvas's width is untouched by this
-  // drag. deltaX follows the handle's own movement: negative (dragging/
-  // moving left) widens the hardware panel (the handle sits on its left
-  // edge) and narrows the code view by the same amount (the handle sits on
-  // its right edge), and positive does the reverse. Each panel still clamps
-  // to its own min/max independently, same as before.
+  // The handle sits on the LEFT edge of the code view -- the boundary
+  // between the Blockly canvas (left of the handle) and the code+hardware
+  // panels together (right of it). So both panels grow or shrink *together*
+  // by the same amount, at the canvas's expense, rather than trading space
+  // with each other. deltaX follows the handle's own movement: negative
+  // (dragging/moving left) grows both panels by taking width from the
+  // canvas (the handle sits on their shared left edge), positive shrinks
+  // both and gives width back to the canvas. Each panel still clamps to its
+  // own min/max independently.
   function handlePanelResize(deltaX) {
     setHardwareWidth((prev) => {
       const next = Math.min(MAX_HARDWARE_WIDTH, Math.max(MIN_HARDWARE_WIDTH, prev - deltaX));
@@ -71,7 +72,7 @@ function App() {
       return next;
     });
     setCodeWidth((prev) => {
-      const next = Math.min(MAX_CODE_WIDTH, Math.max(MIN_CODE_WIDTH, prev + deltaX));
+      const next = Math.min(MAX_CODE_WIDTH, Math.max(MIN_CODE_WIDTH, prev - deltaX));
       localStorage.setItem('codeViewWidth', String(next));
       return next;
     });
@@ -153,13 +154,11 @@ function App() {
       </header>
       <main className="app-main">
         <BlocklyWorkspace ref={blocklyRef} onCodeChange={setCode} />
-        {showCode && <CodeView code={code} width={codeWidth} />}
-        {!hardwareCollapsed && (
-          <>
-            <ResizeHandle onResize={handlePanelResize} label="Resize code and hardware panels" />
-            <HardwarePanel code={code} width={hardwareWidth} />
-          </>
+        {(showCode || !hardwareCollapsed) && (
+          <ResizeHandle onResize={handlePanelResize} label="Resize code and hardware panels" />
         )}
+        {showCode && <CodeView code={code} width={codeWidth} />}
+        {!hardwareCollapsed && <HardwarePanel code={code} width={hardwareWidth} />}
       </main>
       {showSaveDialog && (
         <SaveDialog
