@@ -70,50 +70,35 @@
   box-shadow: var(--card-shadow);
 }
 
-/* Toggle for whether a category's flyout stays open across multiple block
-   drags (Flyout.setAutoClose(false)) or auto-closes after each one (Blockly's
-   default). Floats over the top-right of the canvas, clear of the toolbox
-   column and Blockly's own bottom-right zoom/trash controls. */
-.flyout-pin-toggle {
+/* Small arrow control docked at the boundary between the category sidebar
+   and the block canvas -- slides the whole sidebar out of view (and back)
+   to reclaim width for the canvas. Its `left` position is set inline in
+   BlocklyWorkspace.jsx (tracks the toolbox's measured width), so only the
+   transition and static look live here; that same inline `left` change is
+   what this transition animates. */
+.sidebar-toggle {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 90;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 95;
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-family: var(--sans);
-  font-weight: 600;
-  font-size: 13px;
-  min-height: 40px;
-  padding: 0 16px;
-  border-radius: 20px;
+  justify-content: center;
+  width: 28px;
+  height: 44px;
+  padding: 0;
+  border-radius: 10px;
   border: 2px solid var(--accent-border);
   background: rgba(255, 255, 255, 0.92);
   color: var(--accent);
+  font-size: 14px;
   cursor: pointer;
   box-shadow: var(--card-shadow);
-  transition: filter 0.15s ease, background 0.15s ease, color 0.15s ease;
+  transition: left 220ms ease, filter 0.15s ease;
 }
 
-.flyout-pin-toggle:hover {
+.sidebar-toggle:hover {
   filter: brightness(1.05);
-}
-
-.flyout-pin-toggle .pin-icon {
-  font-size: 16px;
-  display: inline-block;
-  transition: transform 0.15s ease;
-}
-
-.flyout-pin-toggle.is-pinned {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: white;
-}
-
-.flyout-pin-toggle.is-pinned .pin-icon {
-  transform: rotate(-35deg);
 }
 
 /* ---- Toolbox / category sidebar ----
@@ -122,6 +107,15 @@
 
 .blockly-workspace .blocklyToolbox {
   padding: 10px 6px;
+  overflow: hidden;
+  /* Duration must match SIDEBAR_TRANSITION_MS in BlocklyWorkspace.jsx --
+     that's how long it waits before telling Blockly the toolbox is actually
+     hidden/visible and recomputing workspace layout. */
+  transition: width 220ms ease, opacity 180ms ease;
+}
+
+.blockly-workspace .blocklyToolbox.is-collapsed {
+  opacity: 0;
 }
 
 .blockly-workspace .blocklyToolboxCategory {

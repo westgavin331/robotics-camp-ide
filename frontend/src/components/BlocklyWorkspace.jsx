@@ -60,9 +60,14 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
   const workspaceRef = useRef(null);
   // null = closed; {mode: 'create'} | {mode: 'edit', defId} | {mode: 'delete', defId, usages}
   const [dialogState, setDialogState] = useState(null);
-  // Session-only (resets on reload): whether a category's flyout stays open
-  // across multiple block drags instead of Blockly's default auto-close.
-  const [flyoutPinned, setFlyoutPinned] = useState(false);
+  // Session-only (resets on reload): whether the category sidebar is
+  // slid out of view to reclaim width for the block canvas.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Toolbox's natural rendered width in px, measured once after inject --
+  // needed (as state, so the toggle button's position re-renders once this
+  // is known) so the collapse/expand animation below has an explicit pixel
+  // value to transition to/from ("auto" doesn't transition).
+  const [toolboxWidth, setToolboxWidth] = useState(0);
 
   // Shared by applyProject (a real Load) and newProject (New button) below --
   // both mean "replace the whole workspace", just with or without saved data
@@ -104,6 +109,23 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
       trashcan: true,
     });
     workspaceRef.current = workspace;
+
+    // A category's flyout always stays open across multiple block drags now
+    // (no more per-session toggle) -- setAutoClose is a real, public Flyout
+    // property/setter ("does the flyout automatically close when a block is
+    // created"), not a custom workaround.
+    workspace.getFlyout()?.setAutoClose(false);
+
+    // Locks in an explicit pixel width on the toolbox's own DOM node (its
+    // natural width is otherwise content-driven/"auto", which CSS can't
+    // transition) so toggleSidebar() below has a real px-to-px value to
+    // animate between when collapsing/expanding.
+    const toolboxEl = workspace.getToolbox()?.HtmlDiv;
+    if (toolboxEl) {
+      const width = toolboxEl.getBoundingClientRect().width;
+      toolboxEl.style.width = `${width}px`;
+      setToolboxWidth(width);
+    }
 
     registerVariablesCategory(workspace);
     registerMyBlocksCategory(workspace, () => setDialogState({ mode: 'create' }));
@@ -175,14 +197,54 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Blockly's toolbox owns a single Flyout instance for the workspace's
-  // lifetime (repopulated per category, never recreated), so this only needs
-  // to run when the toggle changes -- not once per category click. autoClose
-  // is a real, public Flyout property/setter ("does the flyout automatically
-  // close when a block is created"), not a custom workaround.
-  useEffect(() => {
-    workspaceRef.current?.getFlyout()?.setAutoClose(!flyoutPinned);
-  }, [flyoutPinned]);
+  // Milliseconds the CSS width/opacity transition on .blocklyToolbox takes
+  // (see App.css) -- kept as one constant so the two stay in sync, since the
+  // Blockly-side bookkeeping below (setVisible/resize) must only happen
+  // after the slide finishes, not mid-animation.
+  const SIDEBAR_TRANSITION_MS = 220;
+
+  // Slides the category sidebar out of/into view. Blockly's own
+  // Toolbox.setVisible() is a hard display:none/block toggle with no
+  // transition, so the actual sliding is plain CSS on the toolbox's own DOM
+  // node (toolboxEl.style.width, set to an explicit px value above); this
+  // just choreographs that CSS change around Blockly's own visibility/layout
+  // bookkeeping so neither fights the other:
+  //  - collapse: close any open flyout (nothing to show against a hidden
+  //    sidebar), start the CSS slide-out, then once it's finished tell
+  //    Blockly the toolbox is actually hidden and let it recompute layout
+  //    (workspace.resize()) so the canvas reclaims the freed width.
+  //  - expand: tell Blockly the toolbox is visible again *first* (so the
+  //    element is display:block, not display:none, before we try to
+  //    transition it -- a transition can't play on a non-rendered element),
+  //    force a layout flush so that starting state is actually registered,
+  //    then start the CSS slide-in and resize again once it's finished.
+  function toggleSidebar() {
+    const workspace = workspaceRef.current;
+    const toolbox = workspace?.getToolbox();
+    const toolboxEl = toolbox?.HtmlDiv;
+    if (!workspace || !toolbox || !toolboxEl) return;
+
+    const collapsing = !sidebarCollapsed;
+    setSidebarCollapsed(collapsing);
+
+    if (collapsing) {
+      toolbox.getFlyout()?.hide();
+      toolboxEl.classList.add('is-collapsed');
+      toolboxEl.style.width = '0px';
+      window.setTimeout(() => {
+        toolbox.setVisible(false);
+        workspace.resize();
+      }, SIDEBAR_TRANSITION_MS);
+    } else {
+      toolbox.setVisible(true);
+      void toolboxEl.offsetWidth; // force layout flush -- see comment above
+      toolboxEl.classList.remove('is-collapsed');
+      toolboxEl.style.width = `${toolboxWidth}px`;
+      window.setTimeout(() => {
+        workspace.resize();
+      }, SIDEBAR_TRANSITION_MS);
+    }
+  }
 
   // Registers the new block's types (registry.js) then drops a fresh
   // "define" hat onto the canvas, same as Scratch/mBlock do right after
@@ -261,19 +323,13 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
         <div ref={blocklyDivRef} className="blockly-workspace" />
         <button
           type="button"
-          className={`flyout-pin-toggle${flyoutPinned ? ' is-pinned' : ''}`}
-          aria-pressed={flyoutPinned}
-          title={
-            flyoutPinned
-              ? 'Category stays open — click to auto-close after each block'
-              : 'Category auto-closes — click to keep it open'
-          }
-          onClick={() => setFlyoutPinned((pinned) => !pinned)}
+          className={`sidebar-toggle${sidebarCollapsed ? ' is-collapsed' : ''}`}
+          style={{ left: sidebarCollapsed ? 0 : toolboxWidth }}
+          aria-expanded={!sidebarCollapsed}
+          title={sidebarCollapsed ? 'Show block categories' : 'Hide block categories'}
+          onClick={toggleSidebar}
         >
-          <span className="pin-icon" aria-hidden="true">
-            📌
-          </span>
-          {flyoutPinned ? 'Stays Open' : 'Auto-Close'}
+          <span aria-hidden="true">{sidebarCollapsed ? '▶' : '◀'}</span>
         </button>
       </div>
       {dialogState?.mode === 'create' && <MakeBlockDialog onSubmit={handleCreate} onCancel={() => setDialogState(null)} />}
