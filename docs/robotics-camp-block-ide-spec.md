@@ -85,7 +85,7 @@ Maps to `attachInterrupt()` / `detachInterrupt()`. Not required by the written c
 ---
 
 ## 4. Backend library requirements
-- `Servo` (bundled with arduino-cli's AVR core, no install needed)
+- `Servo` (not bundled with the AVR core despite being an Arduino-maintained lib — `arduino-cli lib install "Servo"`)
 - `IRremote` (Armin Joachimsmeyer's version — `arduino-cli lib install "IRremote"`)
 - Everything else is raw pin I/O, no library needed.
 

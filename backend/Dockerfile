@@ -16,17 +16,24 @@ RUN mkdir -p /usr/local/arduino-cli-bin \
        | BINDIR=/usr/local/arduino-cli-bin sh
 ENV PATH="/usr/local/arduino-cli-bin:${PATH}"
 
-# Pre-install the AVR core (arduino:avr:uno target -- bundles the Servo
-# library, no separate install needed) and the IRremote library at build
-# time. Baked into the image so a running container never needs network
-# access to Arduino's package index, and so the first compile a kid runs
-# isn't slowed down by a cold download -- see docs/robotics-camp-block-ide-spec.md
-# section 4 for why these two specifically.
+# Pre-install the AVR core (arduino:avr:uno target) and the Servo/IRremote
+# libraries at build time. Baked into the image so a running container never
+# needs network access to Arduino's package index, and so the first compile
+# a kid runs isn't slowed down by a cold download -- see
+# docs/robotics-camp-block-ide-spec.md section 4 for why these two
+# specifically.
+#
+# Servo is NOT actually bundled with the arduino:avr core -- that was a
+# wrong assumption in an earlier version of this comment. The core's own
+# libraries/ only ships EEPROM, HID, SPI, SoftwareSerial, and Wire; Servo is
+# a separate Library Manager package (like IRremote) and must be installed
+# explicitly, or every servo block fails to compile with "Servo.h: No such
+# file or directory".
 RUN arduino-cli config init \
     && arduino-cli core update-index \
     && arduino-cli core install arduino:avr \
     && arduino-cli lib update-index \
-    && arduino-cli lib install "IRremote"
+    && arduino-cli lib install "Servo" "IRremote"
 
 WORKDIR /app
 
