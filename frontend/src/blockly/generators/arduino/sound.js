@@ -15,7 +15,7 @@ const NOTE_FREQUENCIES = {
 const BEAT_DURATION_MS = 250;
 
 generator.forBlock['sound_play_note'] = function (block, gen) {
-  const pin = gen.valueToCode(block, 'PIN', gen.ORDER_NONE) || '8';
+  const pin = block.getFieldValue('PIN');
   const beats = gen.valueToCode(block, 'BEATS', gen.ORDER_MULTIPLICATIVE) || '1';
   const note = block.getFieldValue('NOTE');
   const freq = Object.prototype.hasOwnProperty.call(NOTE_FREQUENCIES, note)

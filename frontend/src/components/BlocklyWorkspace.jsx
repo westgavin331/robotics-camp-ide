@@ -8,6 +8,7 @@ import { scratchTheme } from '../blockly/theme.js';
 // Side-effect only: registers the rounded colour-dot swatch category (see
 // that file) in place of Blockly's default flat-bar category rendering.
 import '../blockly/toolboxCategory.js';
+import { FixedScaleFlyout } from '../blockly/fixedScaleFlyout.js';
 import { registerVariablesCategory } from '../blockly/registerVariablesCategory.js';
 import { registerMyBlocksCategory } from '../blockly/myBlocks/toolboxCategory.js';
 import {
@@ -65,11 +66,15 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
   // etc.) is never affected by this -- only the flyout of draggable blocks
   // that pops out next to it.
   const [flyoutCollapsed, setFlyoutCollapsed] = useState(false);
-  // Toolbox's rendered width in px, measured once after inject, purely to
-  // dock the toggle arrow at its right edge (the toolbox itself never
-  // resizes, so this is a one-time measurement, not tracked state that
-  // needs to stay in sync with anything).
+  // Toolbox's rendered width, and the bottom edge of its actual rendered
+  // category rows (px, relative to the wrapper), measured once after
+  // inject purely to dock the toggle arrow against the category list.
+  // Blockly stretches the toolbox's own DOM element to 100% height
+  // regardless of how many categories it holds, so positioning from the
+  // *element's* bottom would land the arrow far below the visible list --
+  // measuring the last category row directly is what actually hugs it.
   const [toolboxWidth, setToolboxWidth] = useState(0);
+  const [categoryListBottom, setCategoryListBottom] = useState(0);
 
   // Shared by applyProject (a real Load) and newProject (New button) below --
   // both mean "replace the whole workspace", just with or without saved data
@@ -109,6 +114,11 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
       grid: { spacing: 20, length: 3, colour: '#dcdfe8', snap: true },
       zoom: { controls: true, wheel: true, startScale: 1 },
       trashcan: true,
+      // Documented plugin-injection slot (Blockly resolves the toolbox's
+      // flyout class from options.plugins.flyoutsVerticalToolbox, falling
+      // back to its own default) -- keeps the flyout's blocks a fixed size
+      // regardless of workspace zoom (see fixedScaleFlyout.js).
+      plugins: { flyoutsVerticalToolbox: FixedScaleFlyout },
     });
     workspaceRef.current = workspace;
 
@@ -118,11 +128,17 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
     // created"), not a custom workaround.
     workspace.getFlyout()?.setAutoClose(false);
 
-    // Measured purely to center the flyout-toggle arrow under the toolbox
-    // column (see App.css) -- the toolbox itself is never resized here.
+    // Measured purely to dock the flyout-toggle arrow against the category
+    // list (see App.css) -- the toolbox itself is never resized here.
     const toolboxEl = workspace.getToolbox()?.HtmlDiv;
     if (toolboxEl) {
       setToolboxWidth(toolboxEl.getBoundingClientRect().width);
+      const rows = toolboxEl.querySelectorAll('.blocklyToolboxCategoryContainer');
+      const lastRow = rows[rows.length - 1];
+      if (lastRow && blocklyDivRef.current) {
+        const wrapperTop = blocklyDivRef.current.getBoundingClientRect().top;
+        setCategoryListBottom(lastRow.getBoundingClientRect().bottom - wrapperTop);
+      }
     }
 
     registerVariablesCategory(workspace);
@@ -206,23 +222,29 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
   // I/O, Sensors, etc.) is never touched here, only the flyout of draggable
   // blocks next to it.
   //  - collapse: just hide it (Flyout.hide()).
-  //  - expand: Toolbox.refreshSelection() re-shows whatever category is
-  //    still selected without needing a fresh category click -- it's a
-  //    no-op if nothing was ever selected. Selection itself (which category
-  //    is "current") lives on the toolbox and is untouched by hide(), so
-  //    this reopens the same one that was showing before collapse.
+  //  - expand: re-shows the still-selected category's flyout with no fresh
+  //    click needed. Selection itself (which category is "current") lives
+  //    on the toolbox and is untouched by hide(), so
+  //    toolbox.getSelectedItem() still points at whatever was open before
+  //    collapsing; feeding its contents straight into flyout.show() is the
+  //    same thing Toolbox.refreshSelection() does internally, just called
+  //    directly rather than through that helper's extra guard conditions
+  //    (isSelectable()/getContents().length) that add indirection without
+  //    changing anything for the categories this toolbox actually has.
   function toggleFlyout() {
     const workspace = workspaceRef.current;
     const toolbox = workspace?.getToolbox();
-    if (!toolbox) return;
+    const flyout = toolbox?.getFlyout();
+    if (!toolbox || !flyout) return;
 
     const collapsing = !flyoutCollapsed;
     setFlyoutCollapsed(collapsing);
 
     if (collapsing) {
-      toolbox.getFlyout()?.hide();
+      flyout.hide();
     } else {
-      toolbox.refreshSelection();
+      const selected = toolbox.getSelectedItem();
+      if (selected) flyout.show(selected.getContents());
     }
   }
 
@@ -304,7 +326,7 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
         <button
           type="button"
           className={`flyout-toggle${flyoutCollapsed ? ' is-collapsed' : ''}`}
-          style={{ left: toolboxWidth / 2 }}
+          style={{ left: toolboxWidth / 2, top: categoryListBottom + 12 }}
           aria-expanded={!flyoutCollapsed}
           title={flyoutCollapsed ? 'Show blocks' : 'Hide blocks'}
           onClick={toggleFlyout}

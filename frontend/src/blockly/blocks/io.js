@@ -1,37 +1,15 @@
 import * as Blockly from 'blockly/core';
+import { DIGITAL_PIN_OPTIONS, ANALOG_PIN_OPTIONS, PWM_PIN_OPTIONS } from './pinFields.js';
 
-// "Basic I/O" blocks (spec section 2, Day 1-2). Pin numbers are connectable
-// Number inputs (not fixed dropdowns) so kids can plug in a variable later,
-// consistent with how Operators/Variables values already work elsewhere.
+// "Basic I/O" blocks (spec section 2, Day 1-2). Pin numbers are fixed
+// dropdowns (see pinFields.js) rather than connectable Number inputs, so a
+// pin choice is always a valid, board-appropriate literal.
 Blockly.defineBlocksWithJsonArray([
-  {
-    type: 'io_set_pin_mode',
-    message0: 'set pin %1 mode %2',
-    args0: [
-      { type: 'input_value', name: 'PIN', check: 'Number' },
-      {
-        type: 'field_dropdown',
-        name: 'MODE',
-        options: [
-          ['OUTPUT', 'OUTPUT'],
-          ['INPUT', 'INPUT'],
-          ['INPUT_PULLUP', 'INPUT_PULLUP'],
-        ],
-      },
-    ],
-    inputsInline: true,
-    previousStatement: null,
-    nextStatement: null,
-    style: 'camp_io_blocks',
-    tooltip:
-      'Explicitly configure a pin (pinMode). Overrides any automatic OUTPUT/INPUT guess ' +
-      'from other blocks using the same pin -- the only way to get INPUT_PULLUP.',
-  },
   {
     type: 'io_digital_write',
     message0: 'set digital pin %1 to %2',
     args0: [
-      { type: 'input_value', name: 'PIN', check: 'Number' },
+      { type: 'field_dropdown', name: 'PIN', options: DIGITAL_PIN_OPTIONS },
       {
         type: 'field_dropdown',
         name: 'STATE',
@@ -50,7 +28,7 @@ Blockly.defineBlocksWithJsonArray([
   {
     type: 'io_digital_read',
     message0: 'read digital pin %1',
-    args0: [{ type: 'input_value', name: 'PIN', check: 'Number' }],
+    args0: [{ type: 'field_dropdown', name: 'PIN', options: DIGITAL_PIN_OPTIONS }],
     inputsInline: true,
     output: 'Number',
     style: 'camp_io_blocks',
@@ -59,7 +37,7 @@ Blockly.defineBlocksWithJsonArray([
   {
     type: 'io_analog_read',
     message0: 'read analog pin %1',
-    args0: [{ type: 'input_value', name: 'PIN', check: 'Number' }],
+    args0: [{ type: 'field_dropdown', name: 'PIN', options: ANALOG_PIN_OPTIONS }],
     inputsInline: true,
     output: 'Number',
     style: 'camp_io_blocks',
@@ -69,20 +47,20 @@ Blockly.defineBlocksWithJsonArray([
     type: 'io_pwm_write',
     message0: 'set PWM pin %1 to %2',
     args0: [
-      { type: 'input_value', name: 'PIN', check: 'Number' },
+      { type: 'field_dropdown', name: 'PIN', options: PWM_PIN_OPTIONS },
       { type: 'input_value', name: 'VALUE', check: 'Number' },
     ],
     inputsInline: true,
     previousStatement: null,
     nextStatement: null,
     style: 'camp_io_blocks',
-    tooltip: 'Set a PWM pin to a value 0-255 (analogWrite).',
+    tooltip: 'Set a PWM pin to a value 0-255 (analogWrite). Only the PWM-capable pins (marked ~) are offered.',
   },
   {
     type: 'io_servo_write',
     message0: 'set servo pin %1 angle %2',
     args0: [
-      { type: 'input_value', name: 'PIN', check: 'Number' },
+      { type: 'field_dropdown', name: 'PIN', options: DIGITAL_PIN_OPTIONS },
       { type: 'input_value', name: 'ANGLE', check: 'Number' },
     ],
     inputsInline: true,

@@ -1,4 +1,5 @@
 import * as Blockly from 'blockly/core';
+import { DIGITAL_PIN_OPTIONS } from './pinFields.js';
 
 // "IR Remote" blocks (spec section 2, Day 6), over the IRremote library
 // (Armin Joachimsmeyer's fork).
@@ -17,7 +18,7 @@ Blockly.defineBlocksWithJsonArray([
   {
     type: 'ir_start_receiver',
     message0: 'start IR receiver on pin %1',
-    args0: [{ type: 'input_value', name: 'PIN', check: 'Number' }],
+    args0: [{ type: 'field_dropdown', name: 'PIN', options: DIGITAL_PIN_OPTIONS }],
     previousStatement: null,
     nextStatement: null,
     style: 'camp_ir_blocks',

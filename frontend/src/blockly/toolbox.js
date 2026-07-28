@@ -20,37 +20,32 @@ export const toolbox = {
       contents: [
         {
           kind: 'block',
-          type: 'io_set_pin_mode',
-          inputs: { PIN: { shadow: { type: 'math_number', fields: { NUM: 13 } } } },
-        },
-        {
-          kind: 'block',
           type: 'io_digital_write',
-          inputs: { PIN: { shadow: { type: 'math_number', fields: { NUM: 13 } } } },
+          fields: { PIN: '13' },
         },
         {
           kind: 'block',
           type: 'io_digital_read',
-          inputs: { PIN: { shadow: { type: 'math_number', fields: { NUM: 2 } } } },
+          fields: { PIN: '2' },
         },
         {
           kind: 'block',
           type: 'io_analog_read',
-          inputs: { PIN: { shadow: { type: 'math_number', fields: { NUM: 0 } } } },
+          fields: { PIN: 'A0' },
         },
         {
           kind: 'block',
           type: 'io_pwm_write',
+          fields: { PIN: '9' },
           inputs: {
-            PIN: { shadow: { type: 'math_number', fields: { NUM: 9 } } },
             VALUE: { shadow: { type: 'math_number', fields: { NUM: 128 } } },
           },
         },
         {
           kind: 'block',
           type: 'io_servo_write',
+          fields: { PIN: '9' },
           inputs: {
-            PIN: { shadow: { type: 'math_number', fields: { NUM: 9 } } },
             ANGLE: { shadow: { type: 'math_number', fields: { NUM: 90 } } },
           },
         },
@@ -69,18 +64,15 @@ export const toolbox = {
         {
           kind: 'block',
           type: 'sensor_pulse_read',
+          fields: { PIN: '2' },
           inputs: {
-            PIN: { shadow: { type: 'math_number', fields: { NUM: 2 } } },
             TIMEOUT: { shadow: { type: 'math_number', fields: { NUM: 1000000 } } },
           },
         },
         {
           kind: 'block',
           type: 'sensor_read_distance',
-          inputs: {
-            TRIG: { shadow: { type: 'math_number', fields: { NUM: 7 } } },
-            ECHO: { shadow: { type: 'math_number', fields: { NUM: 6 } } },
-          },
+          fields: { TRIG: '7', ECHO: '6' },
         },
       ],
     },
@@ -92,8 +84,8 @@ export const toolbox = {
         {
           kind: 'block',
           type: 'sound_play_note',
+          fields: { PIN: '8' },
           inputs: {
-            PIN: { shadow: { type: 'math_number', fields: { NUM: 8 } } },
             BEATS: { shadow: { type: 'math_number', fields: { NUM: 1 } } },
           },
         },
@@ -107,7 +99,7 @@ export const toolbox = {
         {
           kind: 'block',
           type: 'ir_start_receiver',
-          inputs: { PIN: { shadow: { type: 'math_number', fields: { NUM: 2 } } } },
+          fields: { PIN: '2' },
         },
         { kind: 'block', type: 'ir_if_received' },
         { kind: 'block', type: 'ir_get_code' },

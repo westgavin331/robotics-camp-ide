@@ -1,4 +1,5 @@
 import * as Blockly from 'blockly/core';
+import { DIGITAL_PIN_OPTIONS } from './pinFields.js';
 
 // "Sensors" blocks (spec section 2, Day 5). `sensor_pulse_read` is the raw
 // pulseIn() wrapper; `sensor_read_distance` is the higher-level ultrasonic
@@ -8,7 +9,7 @@ Blockly.defineBlocksWithJsonArray([
     type: 'sensor_pulse_read',
     message0: 'read pulse pin %1 state %2 timeout %3 µs',
     args0: [
-      { type: 'input_value', name: 'PIN', check: 'Number' },
+      { type: 'field_dropdown', name: 'PIN', options: DIGITAL_PIN_OPTIONS },
       {
         type: 'field_dropdown',
         name: 'STATE',
@@ -28,8 +29,8 @@ Blockly.defineBlocksWithJsonArray([
     type: 'sensor_read_distance',
     message0: 'read distance (cm) trig pin %1 echo pin %2',
     args0: [
-      { type: 'input_value', name: 'TRIG', check: 'Number' },
-      { type: 'input_value', name: 'ECHO', check: 'Number' },
+      { type: 'field_dropdown', name: 'TRIG', options: DIGITAL_PIN_OPTIONS },
+      { type: 'field_dropdown', name: 'ECHO', options: DIGITAL_PIN_OPTIONS },
     ],
     inputsInline: true,
     output: 'Number',

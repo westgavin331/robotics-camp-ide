@@ -11,7 +11,7 @@ const IR_INCLUDE_LINE = '#include <IRremote.hpp>';
 // shouldn't normally happen -- there's only one receiver) just overwrites
 // rather than emitting IrReceiver.begin() twice.
 generator.forBlock['ir_start_receiver'] = function (block, gen) {
-  const pin = gen.valueToCode(block, 'PIN', gen.ORDER_NONE) || '0';
+  const pin = block.getFieldValue('PIN');
   gen.addInclude(IR_INCLUDE_KEY, IR_INCLUDE_LINE);
   gen.addSetup('ir_receiver_begin', `IrReceiver.begin(${pin}, ENABLE_LED_FEEDBACK);`);
   return '';

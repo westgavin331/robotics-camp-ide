@@ -1,4 +1,5 @@
 import * as Blockly from 'blockly/core';
+import { DIGITAL_PIN_OPTIONS } from './pinFields.js';
 
 // "Sound" block (spec section 2). Note names map to frequencies in the
 // generator's lookup table (see generators/arduino/sound.js).
@@ -16,7 +17,7 @@ Blockly.defineBlocksWithJsonArray([
     type: 'sound_play_note',
     message0: 'play pin %1 note %2 for %3 beats',
     args0: [
-      { type: 'input_value', name: 'PIN', check: 'Number' },
+      { type: 'field_dropdown', name: 'PIN', options: DIGITAL_PIN_OPTIONS },
       { type: 'field_dropdown', name: 'NOTE', options: NOTE_OPTIONS },
       { type: 'input_value', name: 'BEATS', check: 'Number' },
     ],

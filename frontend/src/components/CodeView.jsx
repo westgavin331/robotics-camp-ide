@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function CodeView({ code }) {
+export default function CodeView({ code, width }) {
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
@@ -15,7 +15,7 @@ export default function CodeView({ code }) {
   }
 
   return (
-    <div className="code-view">
+    <div className="code-view" style={{ '--code-width': `${width}px` }}>
       <div className="code-view-header">
         <span>sketch.ino</span>
         <button type="button" className="code-view-copy" onClick={handleCopy}>

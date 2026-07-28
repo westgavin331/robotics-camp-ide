@@ -72,17 +72,20 @@
 
 /* Small arrow control that shows/hides the currently-open category's block
    flyout -- the toolbox column (Basic I/O, Sensors, etc.) is never affected
-   by this and never moves. Docked in the toolbox's own empty space below
-   the category list (its `left` is set inline in BlocklyWorkspace.jsx,
-   centred on the toolbox's measured width) rather than at the toolbox/
-   flyout boundary: a flyout can be much wider than the toolbox depending on
-   the category's blocks, so a button sitting right on that boundary would
-   end up on top of (and blocking clicks on) whatever block happens to be
-   flush against it. Sitting inside the toolbox's own footprint instead
-   guarantees it never overlaps flyout content, regardless of width. */
+   by this and never moves. Docked directly under the category list's own
+   last row (both `top` and `left` are set inline in BlocklyWorkspace.jsx,
+   measured from the actual rendered rows -- Blockly stretches the toolbox's
+   own DOM element to 100% height regardless of category count, so anything
+   positioned from that element's edges would float far below the visible
+   list instead of hugging it) rather than at the toolbox/flyout boundary: a
+   flyout can be much wider than the toolbox depending on the category's
+   blocks, so a button sitting right on that boundary would end up on top of
+   (and blocking clicks on) whatever block happens to be flush against it.
+   Sitting just below the list instead guarantees it never overlaps flyout
+   content, regardless of width, while still reading as "this belongs to the
+   category list". */
 .flyout-toggle {
   position: absolute;
-  bottom: 16px;
   transform: translateX(-50%);
   z-index: 95;
   display: flex;
@@ -168,7 +171,7 @@
 }
 
 .code-view {
-  width: 400px;
+  width: var(--code-width, 400px);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;

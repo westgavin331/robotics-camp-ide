@@ -64,9 +64,7 @@ arduinoGenerator.init = function init(workspace) {
   // Lines contributed to setup(), keyed the same way as definitions_.
   this.setups_ = Object.create(null);
   // Requested pinMode() calls, keyed by pin -- resolved into setups_ once
-  // in finish(), after every block has been visited, so a kid's explicit
-  // "set pin mode" block always wins over an inferred OUTPUT/INPUT guess
-  // (see requestPinMode()) no matter which block the walk visits first.
+  // in finish(), after every block has been visited (see reservePinMode()).
   this.pinModeRequests_ = Object.create(null);
   // Lines contributed to the very top of loop(), before any of the kid's
   // own blocks -- keyed the same way as definitions_/setups_, so a reporter
@@ -107,37 +105,22 @@ arduinoGenerator.addLoopTop = function addLoopTop(key, line) {
   this.loopTops_[key] = line;
 };
 
-// Records a request to configure a literal pin's mode, deduplicated by pin
-// (never by pin+mode -- one pin can only genuinely be in one mode at a
-// time). `explicit` marks a kid's own "set pin mode" block (io.js); every
-// other caller here is an inferred guess (io_digital_write/io_pwm_write
-// inferring OUTPUT, io_digital_read inferring INPUT). An explicit request
-// always wins over an inferred one, regardless of which block the
-// generation walk visits first, since both kinds land here rather than
-// writing straight to setups_ -- only finish() (after every block has run)
-// picks the winner and emits the single resulting pinMode() line. This
-// also matters for INPUT_PULLUP: auto-injection can only ever guess OUTPUT
-// or INPUT, so it's the only way that mode reaches a pin at all.
-arduinoGenerator.requestPinMode = function requestPinMode(pin, mode, explicit) {
-  const existing = this.pinModeRequests_[pin];
-  if (existing && existing.explicit && !explicit) return; // an explicit block already claimed this pin
-  this.pinModeRequests_[pin] = { mode, explicit };
+// Records a request to configure a pin's mode, deduplicated by pin (never
+// by pin+mode -- one pin can only genuinely be in one mode at a time).
+// Resolved into setups_ once in finish(), after every block has been
+// visited, so ordering between blocks never matters.
+arduinoGenerator.requestPinMode = function requestPinMode(pin, mode) {
+  this.pinModeRequests_[pin] = mode;
 };
 
-// Hoists a `pinMode(pin, mode)` call to setup() when the pin is a literal
-// number (see requestPinMode -- resolved in finish(), so ordering between
-// blocks never matters). When the pin is a dynamic expression (a variable
-// or another block), there's no single setup-time value to hoist, so the
-// caller gets an inline statement to run immediately before using the pin
-// instead. Returns '' for the hoisted case or a `pinMode(...);\n` string
-// for the inline case.
-arduinoGenerator.reservePinMode = function reservePinMode(pinCode, mode) {
-  const trimmed = pinCode.trim();
-  if (/^\d+$/.test(trimmed)) {
-    this.requestPinMode(trimmed, mode, false);
-    return '';
-  }
-  return `pinMode(${pinCode}, ${mode});\n`;
+// Called by blocks that use a pin for digital I/O (io_digital_write,
+// io_digital_read, io_pwm_write, io_servo_write) to have its pinMode()
+// hoisted to setup(). Pin fields are fixed dropdowns (see
+// blocks/pinFields.js), so `pin` is always a literal board pin -- never a
+// variable or expression -- and this always resolves to a single hoisted
+// call.
+arduinoGenerator.reservePinMode = function reservePinMode(pin, mode) {
+  this.requestPinMode(pin, mode);
 };
 
 arduinoGenerator.scrub_ = function scrub_(block, code, opt_thisOnly) {
@@ -152,9 +135,8 @@ arduinoGenerator.scrub_ = function scrub_(block, code, opt_thisOnly) {
 // this only handles final assembly, not the sorting itself.
 arduinoGenerator.finish = function finish(setupCode, loopCode) {
   // Resolve deferred pinMode() requests now that every block's generator
-  // function has run (see requestPinMode) -- one line per pin, explicit
-  // always beating inferred, never both.
-  for (const [pin, { mode }] of Object.entries(this.pinModeRequests_)) {
+  // function has run (see requestPinMode) -- one line per pin.
+  for (const [pin, mode] of Object.entries(this.pinModeRequests_)) {
     this.setups_[`pinMode_${pin}`] = `pinMode(${pin}, ${mode});`;
   }
 

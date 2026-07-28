@@ -13,6 +13,9 @@ import './App.css';
 const DEFAULT_HARDWARE_WIDTH = 360;
 const MIN_HARDWARE_WIDTH = 260;
 const MAX_HARDWARE_WIDTH = 640;
+const DEFAULT_CODE_WIDTH = 400;
+const MIN_CODE_WIDTH = 280;
+const MAX_CODE_WIDTH = 700;
 const LAST_PROJECT_NAME_KEY = 'roboticsCampLastProjectName';
 
 function loadStoredWidth() {
@@ -23,6 +26,14 @@ function loadStoredWidth() {
   return DEFAULT_HARDWARE_WIDTH;
 }
 
+function loadStoredCodeWidth() {
+  const stored = Number(localStorage.getItem('codeViewWidth'));
+  if (Number.isFinite(stored) && stored >= MIN_CODE_WIDTH && stored <= MAX_CODE_WIDTH) {
+    return stored;
+  }
+  return DEFAULT_CODE_WIDTH;
+}
+
 function App() {
   const [code, setCode] = useState('');
   const [showCode, setShowCode] = useState(true);
@@ -30,6 +41,7 @@ function App() {
     () => localStorage.getItem('hardwarePanelCollapsed') === 'true',
   );
   const [hardwareWidth, setHardwareWidth] = useState(loadStoredWidth);
+  const [codeWidth, setCodeWidth] = useState(loadStoredCodeWidth);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showLoadDialog, setShowLoadDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -44,12 +56,23 @@ function App() {
     });
   }
 
-  // deltaX follows the drag handle's own movement: negative (dragging/moving
-  // left) widens the panel since the handle sits on its left edge.
-  function handleHardwareResize(deltaX) {
+  // The handle sits between the code view (left) and hardware panel
+  // (right), so its own movement should grow one exactly as much as it
+  // shrinks the other -- the Blockly canvas's width is untouched by this
+  // drag. deltaX follows the handle's own movement: negative (dragging/
+  // moving left) widens the hardware panel (the handle sits on its left
+  // edge) and narrows the code view by the same amount (the handle sits on
+  // its right edge), and positive does the reverse. Each panel still clamps
+  // to its own min/max independently, same as before.
+  function handlePanelResize(deltaX) {
     setHardwareWidth((prev) => {
       const next = Math.min(MAX_HARDWARE_WIDTH, Math.max(MIN_HARDWARE_WIDTH, prev - deltaX));
       localStorage.setItem('hardwarePanelWidth', String(next));
+      return next;
+    });
+    setCodeWidth((prev) => {
+      const next = Math.min(MAX_CODE_WIDTH, Math.max(MIN_CODE_WIDTH, prev + deltaX));
+      localStorage.setItem('codeViewWidth', String(next));
       return next;
     });
   }
@@ -130,10 +153,10 @@ function App() {
       </header>
       <main className="app-main">
         <BlocklyWorkspace ref={blocklyRef} onCodeChange={setCode} />
-        {showCode && <CodeView code={code} />}
+        {showCode && <CodeView code={code} width={codeWidth} />}
         {!hardwareCollapsed && (
           <>
-            <ResizeHandle onResize={handleHardwareResize} label="Resize hardware panel" />
+            <ResizeHandle onResize={handlePanelResize} label="Resize code and hardware panels" />
             <HardwarePanel code={code} width={hardwareWidth} />
           </>
         )}

@@ -4,7 +4,7 @@ import { arduinoGenerator as generator } from './core.js';
 // need the pin configured a particular way (e.g. INPUT_PULLUP) do that
 // themselves with an io_digital_read/write block first.
 generator.forBlock['sensor_pulse_read'] = function (block, gen) {
-  const pin = gen.valueToCode(block, 'PIN', gen.ORDER_NONE) || '0';
+  const pin = block.getFieldValue('PIN');
   const state = block.getFieldValue('STATE');
   const timeout = gen.valueToCode(block, 'TIMEOUT', gen.ORDER_NONE) || '1000000';
   return [`pulseIn(${pin}, ${state}, ${timeout})`, gen.ORDER_UNARY_POSTFIX];
@@ -15,8 +15,8 @@ generator.forBlock['sensor_pulse_read'] = function (block, gen) {
 // provideFunction_) so this can still be used as a plain value expression
 // even though building the reading takes several statements.
 generator.forBlock['sensor_read_distance'] = function (block, gen) {
-  const trig = gen.valueToCode(block, 'TRIG', gen.ORDER_NONE) || '0';
-  const echo = gen.valueToCode(block, 'ECHO', gen.ORDER_NONE) || '0';
+  const trig = block.getFieldValue('TRIG');
+  const echo = block.getFieldValue('ECHO');
 
   const fnName = gen.provideFunction_('readDistanceCM', [
     `float ${gen.FUNCTION_NAME_PLACEHOLDER_}(int trigPin, int echoPin) {`,
