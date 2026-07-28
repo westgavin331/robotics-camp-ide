@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import BlocklyWorkspace from './components/BlocklyWorkspace.jsx';
 import CodeView from './components/CodeView.jsx';
 import HardwarePanel from './components/HardwarePanel.jsx';
@@ -46,7 +46,27 @@ function App() {
   const [showLoadDialog, setShowLoadDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showNewDialog, setShowNewDialog] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const blocklyRef = useRef(null);
+
+  // Keeps the button's label/state truthful even when fullscreen is left
+  // some other way than clicking it (Escape, F11, browser UI), since those
+  // exits don't go through toggleFullscreen.
+  useEffect(() => {
+    function handleFullscreenChange() {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    }
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  function toggleFullscreen() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      document.documentElement.requestFullscreen();
+    }
+  }
 
   function toggleHardwarePanel() {
     setHardwareCollapsed((prev) => {
@@ -149,6 +169,14 @@ function App() {
             onClick={toggleHardwarePanel}
           >
             {hardwareCollapsed ? 'Show Tools' : 'Hide Tools'}
+          </button>
+          <button
+            type="button"
+            className="header-toggle"
+            aria-pressed={isFullscreen}
+            onClick={toggleFullscreen}
+          >
+            {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
           </button>
         </div>
       </header>
