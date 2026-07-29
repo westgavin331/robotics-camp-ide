@@ -88,7 +88,7 @@ function registerCustomFunctionSignature(node, name, ctx, globalDedupe) {
 // provideFunction_ helper -- a real top-level function, structurally
 // identical every time it's generated. Matched by *shape*, not name (a
 // human, or Blockly's own collision-suffixing, could rename it), so this
-// checks the exact 9-statement body against the exact template rather than
+// checks the exact 10-statement body against the exact template rather than
 // just checking the function's name.
 function expectCall(stmtNode, fnName, argMatchers) {
   if (!stmtNode || stmtNode.type !== 'expression_statement') return false;
@@ -110,7 +110,7 @@ function matchesDistanceHelperTemplate(fnNode) {
   if (!trigName || !echoName) return false;
 
   const stmts = fnNode.childForFieldName('body').namedChildren.filter((n) => n.type !== 'comment');
-  if (stmts.length !== 9) return false;
+  if (stmts.length !== 10) return false;
   if (!expectCall(stmts[0], 'pinMode', [isIdent(trigName), isIdent('OUTPUT')])) return false;
   if (!expectCall(stmts[1], 'pinMode', [isIdent(echoName), isIdent('INPUT')])) return false;
   if (!expectCall(stmts[2], 'digitalWrite', [isIdent(trigName), isIdent('LOW')])) return false;
@@ -127,9 +127,12 @@ function matchesDistanceHelperTemplate(fnNode) {
   const pulseCall = initDecl.childForFieldName('value');
   if (pulseCall?.type !== 'call_expression' || pulseCall.childForFieldName('function')?.text !== 'pulseIn') return false;
   const pulseArgs = pulseCall.childForFieldName('arguments')?.namedChildren ?? [];
-  if (pulseArgs.length !== 2 || pulseArgs[0].text !== echoName || pulseArgs[1].text !== 'HIGH') return false;
+  if (pulseArgs.length !== 3 || pulseArgs[0].text !== echoName || pulseArgs[1].text !== 'HIGH') return false;
+  if (!isNum(30000)(pulseArgs[2])) return false;
 
-  const returnStmt = stmts[8];
+  if (!expectCall(stmts[8], 'delay', [isNum(60)])) return false;
+
+  const returnStmt = stmts[9];
   if (returnStmt.type !== 'return_statement') return false;
   const retExpr = unwrapParens(returnStmt.namedChild(0));
   if (!retExpr || retExpr.type !== 'binary_expression' || retExpr.childForFieldName('operator')?.type !== '/') return false;
