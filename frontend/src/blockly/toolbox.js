@@ -63,14 +63,6 @@ export const toolbox = {
       contents: [
         {
           kind: 'block',
-          type: 'sensor_pulse_read',
-          fields: { PIN: '2' },
-          inputs: {
-            TIMEOUT: { shadow: { type: 'math_number', fields: { NUM: 1000000 } } },
-          },
-        },
-        {
-          kind: 'block',
           type: 'sensor_read_distance',
           fields: { TRIG: '7', ECHO: '6' },
         },

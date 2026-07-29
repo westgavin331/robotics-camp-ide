@@ -1,15 +1,5 @@
 import { arduinoGenerator as generator } from './core.js';
 
-// "Raw" per the spec: just pulseIn(), no automatic pin setup -- kids who
-// need the pin configured a particular way (e.g. INPUT_PULLUP) do that
-// themselves with an io_digital_read/write block first.
-generator.forBlock['sensor_pulse_read'] = function (block, gen) {
-  const pin = block.getFieldValue('PIN');
-  const state = block.getFieldValue('STATE');
-  const timeout = gen.valueToCode(block, 'TIMEOUT', gen.ORDER_NONE) || '1000000';
-  return [`pulseIn(${pin}, ${state}, ${timeout})`, gen.ORDER_UNARY_POSTFIX];
-};
-
 // The "higher-level wrapper" the spec calls for: trigger pulse + pulseIn +
 // cm conversion, all inside one reusable helper function (emitted once via
 // provideFunction_) so this can still be used as a plain value expression

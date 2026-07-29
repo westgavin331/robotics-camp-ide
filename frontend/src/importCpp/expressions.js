@@ -154,23 +154,6 @@ function recognizeCall(node, ctx, scope) {
     if (!pin) return null;
     return { type: 'io_analog_read', inputs: input('PIN', pin) };
   }
-  if (name === 'pulseIn' && (args.length === 2 || args.length === 3)) {
-    if (args[1].type !== 'identifier' || (args[1].text !== 'HIGH' && args[1].text !== 'LOW')) {
-      ctx.error(args[1], 'pulseIn\'s second argument should be HIGH or LOW.');
-      return null;
-    }
-    const pin = recognizeExpression(args[0], ctx, scope);
-    if (!pin) return null;
-    const fields = { STATE: args[1].text };
-    const inputs = { ...input('PIN', pin) };
-    if (args.length === 3) {
-      const timeout = recognizeExpression(args[2], ctx, scope);
-      if (!timeout) return null;
-      Object.assign(inputs, input('TIMEOUT', timeout));
-    }
-    return { type: 'sensor_pulse_read', fields, inputs };
-  }
-
   if (ctx.distanceHelperNames.has(name) && args.length === 2) {
     const trig = recognizeExpression(args[0], ctx, scope);
     const echo = recognizeExpression(args[1], ctx, scope);

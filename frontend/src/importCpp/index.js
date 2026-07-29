@@ -13,8 +13,8 @@ export { ImportRejected } from './errors.js';
 // Supported subset (checked against every block category this app has):
 //   - Basic I/O: digitalWrite/Read, analogRead/Write, servo .attach()+.write(),
 //     wait (delay, both "N seconds" and "N ms" shapes)
-//   - Sensors: pulseIn, the exact ultrasonic-distance helper function this
-//     app's own generator produces (ping sequence + pulseIn + cm conversion)
+//   - Sensors: the exact ultrasonic-distance helper function this app's own
+//     generator produces (ping sequence + pulseIn + cm conversion)
 //   - Sound: tone()+delay() note pairs and a REST delay(), only in this
 //     app's own "beats * 250" shape (see sound.js -- "beats" is this app's
 //     own invented tempo unit, not something hand-written code would
