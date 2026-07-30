@@ -22,6 +22,88 @@ export function serializeProject(workspace) {
   };
 }
 
+const OUTDATED_BLOCK_WARNING =
+  'This block was saved by an older version of the app, and its pin setting ' +
+  "couldn't be carried over. Pick the right pin from the dropdown.";
+
+// Keyed so this warning and warnings.js's IR-hold warning can coexist on the
+// same block -- Blockly treats an unkeyed setWarningText(null) as "clear
+// every warning here", so an unkeyed pair would clobber each other.
+const OUTDATED_BLOCK_WARNING_ID = 'outdatedBlock';
+
+// A stale `inputs` entry pointed at what is now a *field* of the same name
+// (every pin moved from a plug-in Number socket to a dropdown). If the
+// socket held nothing but a plain number, and that number is one of the
+// dropdown's choices, it means exactly what it used to -- "pin 11" is still
+// pin 11 -- so the value carries straight over and nothing is lost.
+// Anything else that could have been plugged in there (a variable, a math
+// expression) has no dropdown equivalent at all, so it returns null and the
+// caller falls back to flagging the block.
+function pinValueFromRemovedSocket(block, name, socketState) {
+  const field = block.getField(name);
+  if (!field || typeof field.getOptions !== 'function') return null;
+  const saved = socketState?.block || socketState?.shadow;
+  const savedNumber = saved?.fields?.NUM;
+  if (typeof savedNumber !== 'number') return null;
+  const value = String(savedNumber);
+  return field.getOptions().some(([, optionValue]) => optionValue === value) ? value : null;
+}
+
+// A saved project can reference a block shape that's since changed: pins
+// used to be connectable Number inputs across Basic I/O, Sensors, Sound and
+// IR Remote, and are now plain dropdown fields with no connection at all.
+// Blockly's deserializer throws MissingConnection when the save data asks it
+// to plug a child block into a socket that no longer exists, which aborts
+// the entire load -- so a project saved before that change can't be opened
+// at all, and the workspace is left cleared with nothing loaded into it.
+//
+// MissingConnection carries both the offending state object and the real,
+// already-constructed Block, so the block's live `inputList` is the
+// authority on which of `state.inputs` are stale. Each pass strips the stale
+// entries (recovering the pin value into the new dropdown where that's
+// unambiguous) and reloads, so the load completes instead of failing.
+function loadWorkspaceState(workspace, savedState) {
+  // Repairs mutate the state in place, and this state belongs to the caller
+  // (a fetched project / the parsed autosave) -- clone so a load never
+  // rewrites its own input.
+  const state = JSON.parse(JSON.stringify(savedState));
+  const needsAttention = new Set();
+  // Each pass either strips at least one stale input or rethrows, so this
+  // terminates on its own; the cap is only a backstop against a Blockly
+  // change that makes a repair stop actually resolving the error.
+  for (let pass = 0; pass < 500; pass++) {
+    try {
+      Blockly.serialization.workspaces.load(state, workspace);
+      break;
+    } catch (err) {
+      if (!(err instanceof Blockly.serialization.exceptions.MissingConnection)) throw err;
+      const blockState = err.state;
+      const liveInputs = new Set(err.block.inputList.map((input) => input.name));
+      const stale = Object.keys(blockState.inputs || {}).filter((name) => !liveInputs.has(name));
+      // MissingConnection also covers output/previous/next mismatches, which
+      // aren't a renamed-socket problem and have no repair here -- let those
+      // surface as the genuine load failure they are.
+      if (stale.length === 0) throw err;
+      for (const name of stale) {
+        const recovered = pinValueFromRemovedSocket(err.block, name, blockState.inputs[name]);
+        if (recovered === null) {
+          needsAttention.add(blockState.id);
+        } else {
+          blockState.fields = blockState.fields || {};
+          blockState.fields[name] = recovered;
+        }
+        delete blockState.inputs[name];
+      }
+      // The failed pass left partly-built blocks behind; drop them so the
+      // retry builds the workspace from scratch rather than on top of them.
+      workspace.clear();
+    }
+  }
+  for (const id of needsAttention) {
+    workspace.getBlockById(id)?.setWarningText(OUTDATED_BLOCK_WARNING, OUTDATED_BLOCK_WARNING_ID);
+  }
+}
+
 // Replaces the entire current workspace with `project` -- custom block
 // types are restored *before* the workspace state that references them is
 // loaded (see registry.js's restoreCustomBlocks for why the order matters),
@@ -32,7 +114,7 @@ export function loadProject(workspace, project) {
   restoreCustomBlocks(project?.customBlocks || []);
   workspace.clear();
   if (project?.workspace && Object.keys(project.workspace).length > 0) {
-    Blockly.serialization.workspaces.load(project.workspace, workspace);
+    loadWorkspaceState(workspace, project.workspace);
   }
 }
 

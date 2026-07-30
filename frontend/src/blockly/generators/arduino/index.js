@@ -9,5 +9,6 @@ import './sensors.js';
 import './sound.js';
 import './ir.js';
 import './serial.js';
+import './motors.js';
 
 export { arduinoGenerator, generateArduinoCode };

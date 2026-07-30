@@ -85,6 +85,7 @@ export const CATEGORY_COLOURS = {
   sound: '#CF63CF', // Scratch "Sound" pink/purple
   ir: '#9966FF', // Scratch "Looks" purple
   serial: '#FFBF00', // Scratch-family gold -- distinct from Control's orange
+  motors: '#0FBD8C', // Scratch extension teal (e.g. Pen) -- distinct from every other hardware category
   control: '#FFAB19', // Scratch "Control" orange
   operators: '#40BF4A', // Scratch "Operators" green
   variables: '#EE7D16', // Scratch "Variables" orange-red -- distinct from Control
@@ -100,6 +101,7 @@ export const scratchTheme = Blockly.Theme.defineTheme('scratch_style', {
     camp_sound_blocks: styleFrom(CATEGORY_COLOURS.sound),
     camp_ir_blocks: styleFrom(CATEGORY_COLOURS.ir),
     camp_serial_blocks: styleFrom(CATEGORY_COLOURS.serial),
+    camp_motors_blocks: styleFrom(CATEGORY_COLOURS.motors),
     camp_control_blocks: styleFrom(CATEGORY_COLOURS.control),
     camp_operators_blocks: styleFrom(CATEGORY_COLOURS.operators),
     camp_variables_blocks: styleFrom(CATEGORY_COLOURS.variables),

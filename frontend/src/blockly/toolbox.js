@@ -1,13 +1,24 @@
-// Toolbox: "Basic I/O", "Sensors", "Sound" and "IR Remote" (custom hardware
-// blocks, spec section 2), a minimal "Serial" debug helper (not in the spec,
-// see blocks/serial.js), plus the standard Blockly "Control flow",
-// "Operators" (logic + math + text, grouped together per spec) and
-// "Variables" categories. Motor blocks are intentionally not included yet
-// (built separately via Blockly's custom block builder).
+// Toolbox: "Basic I/O", "Sensors", "Sound", "IR Remote" and "Motors"
+// (custom hardware blocks, spec section 2), a minimal "Serial" debug helper
+// (not in the spec, see blocks/serial.js), plus the standard Blockly
+// "Control flow", "Operators" (logic + math + text, grouped together per
+// spec) and "Variables" categories.
 //
 // Category chip colours come from CATEGORY_COLOURS (theme.js) -- the same
 // values the block styles themselves are built from -- so the toolbox
 // sidebar and the blocks it produces are always in sync.
+//
+// Default pin choices below deliberately avoid 2, 3, 4, 5, 7 and 8: those
+// are hard-wired to the TB6612FNG motor driver (see blocks/motors.js), and
+// unlike every other pin here that wiring is fixed -- a kid can't move it
+// with a dropdown. The motors are always physically present on the
+// chassis, so a default that collided with one would silently fight the
+// motor driver for the pin (reservePinMode dedupes by pin, so only one
+// pinMode survives) for any program that used both. Pins 6 and 9-13 are
+// the free ones; overlaps *among* the defaults below (e.g. digital read
+// and the IR receiver both suggesting 12) are fine and pre-existing --
+// they're starting suggestions for blocks rarely used together, and either
+// one can be moved with its dropdown.
 import { CATEGORY_COLOURS } from './theme.js';
 
 export const toolbox = {
@@ -26,7 +37,7 @@ export const toolbox = {
         {
           kind: 'block',
           type: 'io_digital_read',
-          fields: { PIN: '2' },
+          fields: { PIN: '12' },
         },
         {
           kind: 'block',
@@ -64,7 +75,7 @@ export const toolbox = {
         {
           kind: 'block',
           type: 'sensor_read_distance',
-          fields: { TRIG: '7', ECHO: '6' },
+          fields: { TRIG: '11', ECHO: '6' },
         },
       ],
     },
@@ -76,7 +87,7 @@ export const toolbox = {
         {
           kind: 'block',
           type: 'sound_play_note',
-          fields: { PIN: '8' },
+          fields: { PIN: '10' },
           inputs: {
             BEATS: { shadow: { type: 'math_number', fields: { NUM: 1 } } },
           },
@@ -91,12 +102,39 @@ export const toolbox = {
         {
           kind: 'block',
           type: 'ir_start_receiver',
-          fields: { PIN: '2' },
+          fields: { PIN: '12' },
         },
         { kind: 'block', type: 'ir_if_received' },
         { kind: 'block', type: 'ir_get_code' },
         { kind: 'block', type: 'ir_repeat_received' },
         { kind: 'block', type: 'ir_held_command' },
+      ],
+    },
+    {
+      kind: 'category',
+      name: 'Motors',
+      colour: CATEGORY_COLOURS.motors,
+      contents: [
+        {
+          kind: 'block',
+          type: 'motor_right_forward',
+          inputs: { SPEED: { shadow: { type: 'math_number', fields: { NUM: 128 } } } },
+        },
+        {
+          kind: 'block',
+          type: 'motor_right_backward',
+          inputs: { SPEED: { shadow: { type: 'math_number', fields: { NUM: 128 } } } },
+        },
+        {
+          kind: 'block',
+          type: 'motor_left_forward',
+          inputs: { SPEED: { shadow: { type: 'math_number', fields: { NUM: 128 } } } },
+        },
+        {
+          kind: 'block',
+          type: 'motor_left_backward',
+          inputs: { SPEED: { shadow: { type: 'math_number', fields: { NUM: 128 } } } },
+        },
       ],
     },
     {

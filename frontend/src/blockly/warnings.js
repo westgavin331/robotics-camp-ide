@@ -19,6 +19,14 @@ const BLOCKING_BLOCK_TYPES = new Set(['io_wait', 'sound_play_note']);
 const IR_HOLD_WARNING =
   'A wait or sound block in this loop might cause the remote to miss button holds.';
 
+// Blockly keeps warnings on a block in an id-keyed map, and clearing with no
+// id at all means "remove every warning on this block", not just this one --
+// which would silently wipe the outdated-block warning projectIO.js puts on
+// a repaired block (sound_play_note is both in BLOCKING_BLOCK_TYPES below
+// and a block whose pin can need repairing). Keying this warning keeps the
+// two independent.
+const IR_HOLD_WARNING_ID = 'irHold';
+
 // Every loop-like block instance that (indirectly) contains `block`, i.e.
 // would have to finish its current iteration before `block` runs again.
 // getSurroundParent() is what makes this skip over statement-chain siblings
@@ -51,8 +59,8 @@ export function updateIrHoldWarnings(workspace) {
   // Clear first: a block that had the warning last time but no longer
   // qualifies (e.g. the wait block got dragged out of the loop) needs it
   // removed, not just left stale.
-  for (const block of irBlocks) block.setWarningText(null);
-  for (const block of blockingBlocks) block.setWarningText(null);
+  for (const block of irBlocks) block.setWarningText(null, IR_HOLD_WARNING_ID);
+  for (const block of blockingBlocks) block.setWarningText(null, IR_HOLD_WARNING_ID);
 
   if (irBlocks.length === 0 || blockingBlocks.length === 0) return;
 
@@ -64,8 +72,8 @@ export function updateIrHoldWarnings(workspace) {
       const blockingLoops = getLoopAncestors(blockingBlock);
       if (!shareLoopAncestor(irLoops, blockingLoops)) continue;
 
-      irBlock.setWarningText(IR_HOLD_WARNING);
-      blockingBlock.setWarningText(IR_HOLD_WARNING);
+      irBlock.setWarningText(IR_HOLD_WARNING, IR_HOLD_WARNING_ID);
+      blockingBlock.setWarningText(IR_HOLD_WARNING, IR_HOLD_WARNING_ID);
     }
   }
 }

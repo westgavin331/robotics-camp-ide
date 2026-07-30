@@ -188,6 +188,76 @@ function trySoundPlayNote(nodes, i, ctx, scope) {
   return undefined;
 }
 
+// --- motor_*: digitalWrite + digitalWrite + analogWrite on the fixed ------
+// TB6612FNG pins. Mirrors the three-line sequence generators/arduino/
+// motors.js emits (its own copy of these constants is the source of truth
+// for code *generation*; this one exists so the importer doesn't have to
+// reach across into the Blockly generator tree -- same duplication the
+// NOTE_FREQUENCIES table above uses, for the same reason).
+//
+// Matched ahead of the generic digitalWrite/analogWrite recognition in
+// recognizeExpressionStatement, which would otherwise turn this back into
+// three separate Basic I/O blocks. That's only safe to prefer because the
+// pattern is highly specific -- all three pins literal and drawn from one
+// motor's own (IN1, IN2, PWM) triple, in that order, with the two IN pins
+// set to *opposite* HIGH/LOW states. Code that happens to touch these pins
+// any other way still falls through to the plain I/O blocks.
+const MOTOR_DRIVES = [
+  // [in1Pin, in2Pin, pwmPin, in1State, in2State] -> block type
+  { in1: 2, in2: 4, pwm: 3, in1State: 'LOW', in2State: 'HIGH', type: 'motor_right_forward' },
+  { in1: 2, in2: 4, pwm: 3, in1State: 'HIGH', in2State: 'LOW', type: 'motor_right_backward' },
+  { in1: 7, in2: 8, pwm: 5, in1State: 'HIGH', in2State: 'LOW', type: 'motor_left_forward' },
+  { in1: 7, in2: 8, pwm: 5, in1State: 'LOW', in2State: 'HIGH', type: 'motor_left_backward' },
+];
+
+// A literal pin argument, as a number -- undefined for anything else (a
+// variable, an expression). Motor pins are hard-wired, so only a literal
+// can be one of them.
+function literalPin(node) {
+  if (!node || node.type !== 'number_literal') return undefined;
+  const n = Number(node.text);
+  return Number.isInteger(n) ? n : undefined;
+}
+
+function digitalWriteParts(node) {
+  const expr = exprOf(node);
+  if (!isCallTo(expr, 'digitalWrite')) return undefined;
+  const args = callArgs(expr);
+  if (args.length !== 2) return undefined;
+  const pin = literalPin(args[0]);
+  if (pin === undefined) return undefined;
+  if (args[1].type !== 'identifier' || (args[1].text !== 'HIGH' && args[1].text !== 'LOW')) return undefined;
+  return { pin, state: args[1].text };
+}
+
+function tryMotorDrive(nodes, i, ctx, scope) {
+  const first = digitalWriteParts(nodes[i]);
+  if (!first) return undefined;
+  const second = nodes[i + 1] ? digitalWriteParts(nodes[i + 1]) : undefined;
+  if (!second) return undefined;
+
+  const third = nodes[i + 2] ? exprOf(nodes[i + 2]) : null;
+  if (!isCallTo(third, 'analogWrite')) return undefined;
+  const thirdArgs = callArgs(third);
+  if (thirdArgs.length !== 2) return undefined;
+  const pwmPin = literalPin(thirdArgs[0]);
+  if (pwmPin === undefined) return undefined;
+
+  const match = MOTOR_DRIVES.find(
+    (m) =>
+      m.in1 === first.pin &&
+      m.in1State === first.state &&
+      m.in2 === second.pin &&
+      m.in2State === second.state &&
+      m.pwm === pwmPin,
+  );
+  if (!match) return undefined;
+
+  const speed = recognizeExpression(thirdArgs[1], ctx, scope);
+  if (!speed) return FAILED;
+  return { count: 3, block: { type: match.type, inputs: input('SPEED', speed) } };
+}
+
 // --- io_wait: delay(<t> * 1000) or a bare delay(<ms>) ---------------------
 
 function tryWait(node, ctx, scope) {
@@ -252,7 +322,7 @@ function recognizeOne(nodes, i, ctx, scope) {
   if (consumed) return { count: 1, block: null };
   if (tryServoAttachLine(node, ctx)) return { count: 1, block: null };
 
-  for (const tryFn of [trySoundPlayNote, tryIrStartReceiver]) {
+  for (const tryFn of [tryMotorDrive, trySoundPlayNote, tryIrStartReceiver]) {
     const result = tryFn(nodes, i, ctx, scope);
     if (result !== undefined) return result === FAILED ? FAILED : result;
   }

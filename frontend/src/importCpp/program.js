@@ -128,7 +128,7 @@ function matchesDistanceHelperTemplate(fnNode) {
   if (pulseCall?.type !== 'call_expression' || pulseCall.childForFieldName('function')?.text !== 'pulseIn') return false;
   const pulseArgs = pulseCall.childForFieldName('arguments')?.namedChildren ?? [];
   if (pulseArgs.length !== 3 || pulseArgs[0].text !== echoName || pulseArgs[1].text !== 'HIGH') return false;
-  if (!isNum(30000)(pulseArgs[2])) return false;
+  if (!isNum(60000)(pulseArgs[2])) return false;
 
   if (!expectCall(stmts[8], 'delay', [isNum(60)])) return false;
 
