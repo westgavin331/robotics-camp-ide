@@ -33,20 +33,34 @@ const OUTDATED_BLOCK_WARNING_ID = 'outdatedBlock';
 
 // A stale `inputs` entry pointed at what is now a *field* of the same name
 // (every pin moved from a plug-in Number socket to a dropdown). If the
-// socket held nothing but a plain number, and that number is one of the
-// dropdown's choices, it means exactly what it used to -- "pin 11" is still
-// pin 11 -- so the value carries straight over and nothing is lost.
-// Anything else that could have been plugged in there (a variable, a math
-// expression) has no dropdown equivalent at all, so it returns null and the
-// caller falls back to flagging the block.
+// socket held nothing but a plain number, and that number names one of the
+// dropdown's choices, it means exactly what it used to, so the value carries
+// straight over and nothing is lost. Anything else that could have been
+// plugged in there (a variable, a math expression) has no dropdown
+// equivalent at all, so it returns null and the caller flags the block.
+//
+// The two forms checked, in order:
+//   "11" -> "11"  a digital/PWM pin, unchanged.
+//   5    -> "A5"  an analog pin. The old block passed its socket value
+//                 straight through as analogRead(5); the dropdown now emits
+//                 analogRead(A5). Those are the same read on an Uno --
+//                 analogRead() takes the analog channel index, and A0-A5 are
+//                 defined as 14-19 with the 14 subtracted back off inside
+//                 analogRead() -- so this preserves the generated behaviour
+//                 rather than reinterpreting it. Guarded by the field's own
+//                 option list, so it can only ever apply to a field that
+//                 actually offers A-pins.
 function pinValueFromRemovedSocket(block, name, socketState) {
   const field = block.getField(name);
   if (!field || typeof field.getOptions !== 'function') return null;
   const saved = socketState?.block || socketState?.shadow;
   const savedNumber = saved?.fields?.NUM;
   if (typeof savedNumber !== 'number') return null;
-  const value = String(savedNumber);
-  return field.getOptions().some(([, optionValue]) => optionValue === value) ? value : null;
+  const offered = new Set(field.getOptions().map(([, optionValue]) => optionValue));
+  for (const candidate of [String(savedNumber), `A${savedNumber}`]) {
+    if (offered.has(candidate)) return candidate;
+  }
+  return null;
 }
 
 // A saved project can reference a block shape that's since changed: pins
