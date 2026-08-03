@@ -40,7 +40,7 @@ export { ImportRejected } from './errors.js';
 //   - Variables: global float/int/double/long/bool/String declarations,
 //     get/set, and "x = x + delta" as change-by
 //   - Lists: a `float name[N];` array paired with its `byte nameLength = 0;`
-//     counter, the six shared helper functions the Lists blocks generate
+//     counter, the nine shared helper functions the Lists blocks generate
 //     (matched by whole-body shape, so renaming them is fine) and their call
 //     sites, plus `nameLength = 0` as "delete all". N has to be one of the
 //     sizes the size dropdown offers. Since the declarations are globals with

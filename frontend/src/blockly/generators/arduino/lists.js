@@ -85,6 +85,54 @@ const LIST_CONTAINS = [
   '}',
 ];
 
+// Biggest/smallest are two separate helpers rather than one taking a
+// "which end" flag: only the one a workspace actually uses gets emitted, and
+// each reads as a plain three-line loop in View Code instead of a function
+// whose behaviour depends on an opaque `true`/`false` at the call site.
+//
+// Both seed from list[0] and scan from 1, so an empty list is the only case
+// needing a special answer -- 0, the same "there's nothing there" value
+// listItem gives for an out-of-range index. The comparison is strict, so a
+// tie leaves `best` alone and the EARLIER item wins.
+const LIST_BIGGEST = [
+  `float ${generator.FUNCTION_NAME_PLACEHOLDER_}(float list[], byte length) {`,
+  '  if (length == 0) return 0;',
+  '  float best = list[0];',
+  '  for (int i = 1; i < length; i++) {',
+  '    if (list[i] > best) best = list[i];',
+  '  }',
+  '  return best;',
+  '}',
+];
+
+const LIST_SMALLEST = [
+  `float ${generator.FUNCTION_NAME_PLACEHOLDER_}(float list[], byte length) {`,
+  '  if (length == 0) return 0;',
+  '  float best = list[0];',
+  '  for (int i = 1; i < length; i++) {',
+  '    if (list[i] < best) best = list[i];',
+  '  }',
+  '  return best;',
+  '}',
+];
+
+// Returns a 1-based position to match Scratch (and `item _ of _`), with 0 for
+// "not in the list" -- 0 is never a valid position, and it's already what
+// listItem returns for an index that isn't there, so the two agree: asking
+// for item 0 of a list gives nothing back.
+//
+// `float` rather than `byte`/`int` like the loop counter, because this is a
+// reporter that plugs into the same Number sockets every other value in this
+// app does, and those all carry floats.
+const LIST_INDEX_OF = [
+  `float ${generator.FUNCTION_NAME_PLACEHOLDER_}(float list[], byte length, float value) {`,
+  '  for (int i = 0; i < length; i++) {',
+  '    if (list[i] == value) return i + 1;',
+  '  }',
+  '  return 0;',
+  '}',
+];
+
 // A list's size comes from its list_create block, which can sit anywhere in
 // the workspace -- including *below* the blocks that use the list, or inside
 // the forever loop. Since the capacity is baked into both the array
@@ -203,5 +251,21 @@ generator.forBlock['list_contains'] = function (block, gen) {
   const list = listFor(block, gen);
   const item = gen.valueToCode(block, 'ITEM', gen.ORDER_NONE) || '0';
   const fn = gen.provideFunction_('listContains', LIST_CONTAINS);
+  return [`${fn}(${list.array}, ${list.length}, ${item})`, gen.ORDER_UNARY_POSTFIX];
+};
+
+generator.forBlock['list_extreme'] = function (block, gen) {
+  const list = listFor(block, gen);
+  const biggest = block.getFieldValue('KIND') === 'MAX';
+  const fn = biggest
+    ? gen.provideFunction_('listBiggest', LIST_BIGGEST)
+    : gen.provideFunction_('listSmallest', LIST_SMALLEST);
+  return [`${fn}(${list.array}, ${list.length})`, gen.ORDER_UNARY_POSTFIX];
+};
+
+generator.forBlock['list_index_of'] = function (block, gen) {
+  const list = listFor(block, gen);
+  const item = gen.valueToCode(block, 'ITEM', gen.ORDER_NONE) || '0';
+  const fn = gen.provideFunction_('listIndexOf', LIST_INDEX_OF);
   return [`${fn}(${list.array}, ${list.length}, ${item})`, gen.ORDER_UNARY_POSTFIX];
 };

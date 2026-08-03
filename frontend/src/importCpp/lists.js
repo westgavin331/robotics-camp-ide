@@ -35,7 +35,7 @@ function input(name, blockState) {
 
 // --- helper-function matching ---------------------------------------------
 
-// The six helpers, verbatim as generators/arduino/lists.js emits them.
+// The nine helpers, verbatim as generators/arduino/lists.js emits them.
 // Matched by whole-body shape, not by name: Blockly's own name deduping can
 // rename them (a kid with a "My Block" called listAdd gets listAdd2), and so
 // can a human.
@@ -106,6 +106,47 @@ const HELPER_SOURCES = [
         if (list[i] == value) return true;
       }
       return false;
+    }`,
+  },
+  // 'biggest' and 'smallest' are separate helpers that differ only in the
+  // comparison operator, so their canonical forms differ by exactly that one
+  // character -- which is what lets the two map back to the right side of
+  // list_extreme's dropdown.
+  {
+    kind: 'biggest',
+    name: 'listBiggest',
+    params: ['list', 'length'],
+    source: `float listBiggest(float list[], byte length) {
+      if (length == 0) return 0;
+      float best = list[0];
+      for (int i = 1; i < length; i++) {
+        if (list[i] > best) best = list[i];
+      }
+      return best;
+    }`,
+  },
+  {
+    kind: 'smallest',
+    name: 'listSmallest',
+    params: ['list', 'length'],
+    source: `float listSmallest(float list[], byte length) {
+      if (length == 0) return 0;
+      float best = list[0];
+      for (int i = 1; i < length; i++) {
+        if (list[i] < best) best = list[i];
+      }
+      return best;
+    }`,
+  },
+  {
+    kind: 'indexOf',
+    name: 'listIndexOf',
+    params: ['list', 'length', 'value'],
+    source: `float listIndexOf(float list[], byte length, float value) {
+      for (int i = 0; i < length; i++) {
+        if (list[i] == value) return i + 1;
+      }
+      return 0;
     }`,
   },
 ];
@@ -393,22 +434,42 @@ function tryDeleteAll(expr, node, ctx, FAILED) {
 
 // --- expressions ----------------------------------------------------------
 
-// `listItem(...)` / `listContains(...)`. Returns undefined if `name` isn't a
-// list helper at all, so expressions.js keeps trying its other call shapes.
+// The helpers that report a value, and the one input each takes beyond the
+// `(<array>, <length>)` prefix every helper starts with. listBiggest and
+// listSmallest take nothing extra -- the block says which end it wants in a
+// dropdown, so there's no third argument to read back.
+const REPORTER_KINDS = new Map([
+  ['item', 'INDEX'],
+  ['contains', 'ITEM'],
+  ['indexOf', 'ITEM'],
+  ['biggest', null],
+  ['smallest', null],
+]);
+
+const REPORTER_BLOCK_TYPES = {
+  item: 'list_item',
+  contains: 'list_contains',
+  indexOf: 'list_index_of',
+};
+
+// `listItem(...)` / `listContains(...)` / `listIndexOf(...)` /
+// `listBiggest(...)` / `listSmallest(...)`. Returns undefined if `name` isn't
+// a list helper at all, so expressions.js keeps trying its other call shapes.
 export function tryListCall(name, args, node, ctx, scope) {
   const kind = ctx.listHelperNames.get(name);
-  if (kind !== 'item' && kind !== 'contains') return undefined;
+  if (!REPORTER_KINDS.has(kind)) return undefined;
+  const inputName = REPORTER_KINDS.get(kind);
   const list = listFromCall(args, ctx);
-  if (!list || args.length !== 3) {
+  if (!list || args.length !== (inputName ? 3 : 2)) {
     ctx.error(node, `"${name}(...)" is one of this app's list helpers, but it isn't being called on a list and its matching counter.`);
     return null;
   }
+  if (!inputName) {
+    return { type: 'list_extreme', fields: { ...listField(list), KIND: kind === 'biggest' ? 'MAX' : 'MIN' } };
+  }
   const value = recognizeExpression(args[2], ctx, scope);
   if (!value) return null;
-  if (kind === 'item') {
-    return { type: 'list_item', fields: listField(list), inputs: input('INDEX', value) };
-  }
-  return { type: 'list_contains', fields: listField(list), inputs: input('ITEM', value) };
+  return { type: REPORTER_BLOCK_TYPES[kind], fields: listField(list), inputs: input(inputName, value) };
 }
 
 // A bare mention of a list's counter is "length of [list]"; a bare mention of

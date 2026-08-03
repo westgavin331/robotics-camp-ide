@@ -341,6 +341,12 @@ export const toolbox = {
           type: 'list_contains',
           inputs: { ITEM: { shadow: { type: 'math_number', fields: { NUM: 1 } } } },
         },
+        { kind: 'block', type: 'list_extreme' },
+        {
+          kind: 'block',
+          type: 'list_index_of',
+          inputs: { ITEM: { shadow: { type: 'math_number', fields: { NUM: 1 } } } },
+        },
       ],
     },
     {

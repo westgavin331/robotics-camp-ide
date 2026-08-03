@@ -173,4 +173,40 @@ Blockly.defineBlocksWithJsonArray([
     style: 'camp_lists_blocks',
     tooltip: 'True if that number is somewhere in the list.',
   },
+  // Reports the value it found, not where it is -- "biggest item of scores"
+  // is the high score itself, which is what a kid wants to show or compare.
+  // Pair it with `item # of _ in _` below to get the position instead.
+  //
+  // Scratch's equivalent dropdown also offers longest/shortest *string*.
+  // There's deliberately no such option here: every slot is a float (see
+  // this file's module comment), so there is no text in a list to measure.
+  {
+    type: 'list_extreme',
+    message0: '%1 item of %2',
+    args0: [
+      {
+        type: 'field_dropdown',
+        name: 'KIND',
+        options: [
+          ['biggest number', 'MAX'],
+          ['smallest number', 'MIN'],
+        ],
+      },
+      listField(),
+    ],
+    inputsInline: true,
+    output: 'Number',
+    style: 'camp_lists_blocks',
+    tooltip: 'The largest (or smallest) number in the list. Gives back 0 if the list is empty.',
+  },
+  {
+    type: 'list_index_of',
+    message0: 'item # of %1 in %2',
+    args0: [{ type: 'input_value', name: 'ITEM', check: 'Number' }, listField()],
+    inputsInline: true,
+    output: 'Number',
+    style: 'camp_lists_blocks',
+    tooltip:
+      'Where that number sits in the list -- 1 for the first item. Gives back 0 if it isn\'t in the list at all, so it lines up with "item 0 of" also being nothing.',
+  },
 ]);
