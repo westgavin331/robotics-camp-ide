@@ -63,6 +63,106 @@ function pinValueFromRemovedSocket(block, name, socketState) {
   return null;
 }
 
+const MOTOR_BLOCK_WARNING =
+  'This used to be a one-wheel motor block. The Motors blocks now always ' +
+  'drive both wheels at once, so check this still does what you meant.';
+
+const MOTOR_BLOCK_WARNING_ID = 'migratedMotorBlock';
+
+// The Motors category used to have four one-wheel blocks (move right/left
+// forward/backward) and now has whole-robot ones instead. Blockly throws on
+// a saved block type it doesn't recognize, and that aborts the *entire*
+// load -- so unlike the renamed-socket repair below, this can't be done
+// reactively from the error; the state has to be rewritten before Blockly
+// ever sees it.
+//
+// Kids drove the two wheels in adjacent pairs (that was the only way to make
+// the robot go anywhere), so a right/left pair collapses into the single
+// block that means the same thing.
+const OLD_MOTOR_BLOCKS = {
+  motor_right_forward: { side: 'right', dir: 'FORWARD' },
+  motor_right_backward: { side: 'right', dir: 'BACKWARD' },
+  motor_left_forward: { side: 'left', dir: 'FORWARD' },
+  motor_left_backward: { side: 'left', dir: 'BACKWARD' },
+};
+
+// "<right wheel>|<left wheel>" -> the block that drives both that way.
+// Always the untimed "set" blocks: the old blocks didn't stop themselves
+// either, so these preserve what the project already did.
+const MERGED_MOTOR_BLOCKS = {
+  'FORWARD|FORWARD': { type: 'motor_set_drive', dir: 'FORWARD' },
+  'BACKWARD|BACKWARD': { type: 'motor_set_drive', dir: 'BACKWARD' },
+  'BACKWARD|FORWARD': { type: 'motor_set_turn', dir: 'RIGHT' },
+  'FORWARD|BACKWARD': { type: 'motor_set_turn', dir: 'LEFT' },
+};
+
+// In place, so the block keeps its id (the warnings below find it by id),
+// its position, and its SPEED input -- only the type and direction change.
+function rewriteMotorBlock(blockState, { type, dir }) {
+  blockState.type = type;
+  blockState.fields = { ...(blockState.fields || {}), DIR: dir };
+  blockState.inputs = blockState.inputs?.SPEED ? { SPEED: blockState.inputs.SPEED } : {};
+}
+
+// Walks one next-chain (and everything plugged into it), returning the
+// chain's new head -- which differs from the old one only in that merged
+// pairs are now a single block.
+function migrateMotorChain(head, needsAttention) {
+  const chain = [];
+  for (let block = head; block; block = block.next?.block) chain.push(block);
+
+  const kept = [];
+  for (let i = 0; i < chain.length; i += 1) {
+    const blockState = chain[i];
+    for (const slot of Object.values(blockState.inputs || {})) {
+      if (slot.block) slot.block = migrateMotorChain(slot.block, needsAttention);
+    }
+
+    const old = OLD_MOTOR_BLOCKS[blockState.type];
+    if (!old) {
+      kept.push(blockState);
+      continue;
+    }
+
+    const partner = chain[i + 1];
+    const partnerOld = partner ? OLD_MOTOR_BLOCKS[partner.type] : undefined;
+    if (partnerOld && partnerOld.side !== old.side) {
+      const right = old.side === 'right' ? old : partnerOld;
+      const left = old.side === 'right' ? partnerOld : old;
+      rewriteMotorBlock(blockState, MERGED_MOTOR_BLOCKS[`${right.dir}|${left.dir}`]);
+      // One speed now covers both wheels. Equal speeds (the normal case)
+      // carry over exactly; different ones genuinely lose something, so
+      // those get flagged.
+      if (JSON.stringify(chain[i].inputs?.SPEED) !== JSON.stringify(partner.inputs?.SPEED)) {
+        needsAttention.add(blockState.id);
+      }
+      kept.push(blockState);
+      i += 1; // the partner is folded into this block
+      continue;
+    }
+
+    // A lone old block spun one wheel and left the other still -- nothing
+    // can do that any more, so this becomes the closest both-wheel
+    // equivalent and gets flagged rather than silently changing what the
+    // robot does.
+    rewriteMotorBlock(blockState, MERGED_MOTOR_BLOCKS[`${old.dir}|${old.dir}`]);
+    needsAttention.add(blockState.id);
+    kept.push(blockState);
+  }
+
+  kept.forEach((blockState, idx) => {
+    if (idx + 1 < kept.length) blockState.next = { block: kept[idx + 1] };
+    else delete blockState.next;
+  });
+  return kept[0] || null;
+}
+
+function migrateMotorBlocks(state, needsAttention) {
+  const topLevel = state.blocks?.blocks;
+  if (!Array.isArray(topLevel)) return;
+  state.blocks.blocks = topLevel.map((b) => migrateMotorChain(b, needsAttention)).filter(Boolean);
+}
+
 // A saved project can reference a block shape that's since changed: pins
 // used to be connectable Number inputs across Basic I/O, Sensors, Sound and
 // IR Remote, and are now plain dropdown fields with no connection at all.
@@ -82,6 +182,8 @@ function loadWorkspaceState(workspace, savedState) {
   // rewrites its own input.
   const state = JSON.parse(JSON.stringify(savedState));
   const needsAttention = new Set();
+  const migratedMotors = new Set();
+  migrateMotorBlocks(state, migratedMotors);
   // Each pass either strips at least one stale input or rethrows, so this
   // terminates on its own; the cap is only a backstop against a Blockly
   // change that makes a repair stop actually resolving the error.
@@ -115,6 +217,9 @@ function loadWorkspaceState(workspace, savedState) {
   }
   for (const id of needsAttention) {
     workspace.getBlockById(id)?.setWarningText(OUTDATED_BLOCK_WARNING, OUTDATED_BLOCK_WARNING_ID);
+  }
+  for (const id of migratedMotors) {
+    workspace.getBlockById(id)?.setWarningText(MOTOR_BLOCK_WARNING, MOTOR_BLOCK_WARNING_ID);
   }
 }
 

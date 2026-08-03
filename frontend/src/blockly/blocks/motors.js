@@ -6,50 +6,106 @@ import * as Blockly from 'blockly/core';
 // PWMB=~5 (see generators/arduino/motors.js). No pin dropdowns, unlike the
 // Basic I/O blocks, since there's nothing for a kid to choose.
 //
-// Motor A drives the right wheel, Motor B the left. The two motors are
-// mounted facing opposite directions on the chassis, so the same
-// electrical rotation sense drives the robot's two wheels in opposite
-// physical directions -- "forward" is therefore counter-clockwise on the
-// right motor but clockwise on the left motor.
+// Every block here moves *both* motors at once -- a kid thinks in terms of
+// the robot going forward or turning, not in terms of two independent
+// wheels. Motor A drives the right wheel, Motor B the left; the two are
+// mounted facing opposite directions on the chassis, so the same electrical
+// rotation sense drives the robot's two wheels in opposite physical
+// directions (see generators/arduino/motors.js for the resulting mapping).
+//
+// The blocks come in two flavours: the "for N seconds" ones run and then
+// stop on their own, and the "set ..." ones just leave the motors running
+// until something else changes them -- so a kid can steer from inside their
+// own forever loop / IR handler without every block fighting to stop.
 Blockly.defineBlocksWithJsonArray([
   {
-    type: 'motor_right_forward',
-    message0: 'move right forward, speed %1',
-    args0: [{ type: 'input_value', name: 'SPEED', check: 'Number' }],
+    type: 'motor_drive_for',
+    message0: 'move %1 at speed %2 for %3 seconds',
+    args0: [
+      {
+        type: 'field_dropdown',
+        name: 'DIR',
+        options: [
+          ['forward', 'FORWARD'],
+          ['backward', 'BACKWARD'],
+        ],
+      },
+      { type: 'input_value', name: 'SPEED', check: 'Number' },
+      { type: 'input_value', name: 'TIME', check: 'Number' },
+    ],
     inputsInline: true,
     previousStatement: null,
     nextStatement: null,
     style: 'camp_motors_blocks',
-    tooltip: 'Drive the right motor (A) forward -- counter-clockwise -- at the given speed (0-255).',
+    tooltip: 'Drive both motors the same way at the given speed (0-255) for the given number of seconds, then stop them.',
   },
   {
-    type: 'motor_right_backward',
-    message0: 'move right backward, speed %1',
-    args0: [{ type: 'input_value', name: 'SPEED', check: 'Number' }],
+    type: 'motor_turn_for',
+    message0: 'turn %1 at speed %2 for %3 seconds',
+    args0: [
+      {
+        type: 'field_dropdown',
+        name: 'DIR',
+        options: [
+          ['left', 'LEFT'],
+          ['right', 'RIGHT'],
+        ],
+      },
+      { type: 'input_value', name: 'SPEED', check: 'Number' },
+      { type: 'input_value', name: 'TIME', check: 'Number' },
+    ],
     inputsInline: true,
     previousStatement: null,
     nextStatement: null,
     style: 'camp_motors_blocks',
-    tooltip: 'Drive the right motor (A) backward -- clockwise -- at the given speed (0-255).',
+    tooltip: 'Spin the robot in place at the given speed (0-255) for the given number of seconds, then stop -- the two wheels drive in opposite directions.',
   },
   {
-    type: 'motor_left_forward',
-    message0: 'move left forward, speed %1',
-    args0: [{ type: 'input_value', name: 'SPEED', check: 'Number' }],
+    type: 'motor_set_drive',
+    message0: 'set speed %1 to %2',
+    args0: [
+      {
+        type: 'field_dropdown',
+        name: 'DIR',
+        options: [
+          ['forward', 'FORWARD'],
+          ['backward', 'BACKWARD'],
+        ],
+      },
+      { type: 'input_value', name: 'SPEED', check: 'Number' },
+    ],
     inputsInline: true,
     previousStatement: null,
     nextStatement: null,
     style: 'camp_motors_blocks',
-    tooltip: 'Drive the left motor (B) forward -- clockwise -- at the given speed (0-255).',
+    tooltip: 'Start both motors going that way at the given speed (0-255) and leave them running -- nothing stops them until another Motors block does.',
   },
   {
-    type: 'motor_left_backward',
-    message0: 'move left backward, speed %1',
-    args0: [{ type: 'input_value', name: 'SPEED', check: 'Number' }],
+    type: 'motor_set_turn',
+    message0: 'set turn %1 speed to %2',
+    args0: [
+      {
+        type: 'field_dropdown',
+        name: 'DIR',
+        options: [
+          ['left', 'LEFT'],
+          ['right', 'RIGHT'],
+        ],
+      },
+      { type: 'input_value', name: 'SPEED', check: 'Number' },
+    ],
     inputsInline: true,
     previousStatement: null,
     nextStatement: null,
     style: 'camp_motors_blocks',
-    tooltip: 'Drive the left motor (B) backward -- counter-clockwise -- at the given speed (0-255).',
+    tooltip: 'Start the robot spinning in place at the given speed (0-255) and leave it spinning -- nothing stops it until another Motors block does.',
+  },
+  {
+    type: 'motor_stop',
+    message0: 'stop motors',
+    previousStatement: null,
+    nextStatement: null,
+    style: 'camp_motors_blocks',
+    tooltip: 'Stop both motors right away.',
   },
 ]);

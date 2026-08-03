@@ -22,10 +22,12 @@ export { ImportRejected } from './errors.js';
 //   - IR Remote: IrReceiver.begin/decode+resume (fused, matching the one
 //     shape ir_if_received's own generator produces)/decodedIRData access/
 //     repeat-flag check
-//   - Motors: the fixed TB6612FNG drive sequence (two digitalWrite calls on
-//     one motor's IN1/IN2 pins set to opposite states, then an analogWrite
-//     on that motor's PWM pin) -- only on the hard-wired pins, so any other
-//     use of those pins still reads back as plain Basic I/O blocks
+//   - Motors: the fixed TB6612FNG drive sequence -- the right motor's
+//     (IN1, IN2, PWM) writes then the left motor's, both at the same speed
+//     and in a recognized direction pairing, optionally followed by a
+//     delay() and the matching stop for the "for N seconds" blocks -- only
+//     on the hard-wired pins and only as a whole six-line group, so any
+//     other use of those pins still reads back as plain Basic I/O blocks
 //   - Serial: Serial.println (Serial.begin is recognized and silently
 //     dropped, like pinMode, since it's implicit in every generated sketch)
 //   - Control Flow: if/else if/else, while, for (repeat-N-times shape and

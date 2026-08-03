@@ -118,24 +118,31 @@ export const toolbox = {
       contents: [
         {
           kind: 'block',
-          type: 'motor_right_forward',
+          type: 'motor_drive_for',
+          inputs: {
+            SPEED: { shadow: { type: 'math_number', fields: { NUM: 128 } } },
+            TIME: { shadow: { type: 'math_number', fields: { NUM: 1 } } },
+          },
+        },
+        {
+          kind: 'block',
+          type: 'motor_turn_for',
+          inputs: {
+            SPEED: { shadow: { type: 'math_number', fields: { NUM: 128 } } },
+            TIME: { shadow: { type: 'math_number', fields: { NUM: 1 } } },
+          },
+        },
+        {
+          kind: 'block',
+          type: 'motor_set_drive',
           inputs: { SPEED: { shadow: { type: 'math_number', fields: { NUM: 128 } } } },
         },
         {
           kind: 'block',
-          type: 'motor_right_backward',
+          type: 'motor_set_turn',
           inputs: { SPEED: { shadow: { type: 'math_number', fields: { NUM: 128 } } } },
         },
-        {
-          kind: 'block',
-          type: 'motor_left_forward',
-          inputs: { SPEED: { shadow: { type: 'math_number', fields: { NUM: 128 } } } },
-        },
-        {
-          kind: 'block',
-          type: 'motor_left_backward',
-          inputs: { SPEED: { shadow: { type: 'math_number', fields: { NUM: 128 } } } },
-        },
+        { kind: 'block', type: 'motor_stop' },
       ],
     },
     {

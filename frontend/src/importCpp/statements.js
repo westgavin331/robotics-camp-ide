@@ -189,26 +189,32 @@ function trySoundPlayNote(nodes, i, ctx, scope) {
   return undefined;
 }
 
-// --- motor_*: digitalWrite + digitalWrite + analogWrite on the fixed ------
-// TB6612FNG pins. Mirrors the three-line sequence generators/arduino/
-// motors.js emits (its own copy of these constants is the source of truth
-// for code *generation*; this one exists so the importer doesn't have to
-// reach across into the Blockly generator tree -- same duplication the
-// NOTE_FREQUENCIES table above uses, for the same reason).
+// --- motor_*: six digitalWrite/analogWrite lines on the fixed TB6612FNG --
+// pins -- the right motor's (IN1, IN2, PWM) triple then the left motor's,
+// which is exactly what generators/arduino/motors.js emits for every Motors
+// block (its own copy of these constants is the source of truth for code
+// *generation*; this one exists so the importer doesn't have to reach across
+// into the Blockly generator tree -- same duplication the NOTE_FREQUENCIES
+// table above uses, for the same reason).
 //
 // Matched ahead of the generic digitalWrite/analogWrite recognition in
 // recognizeExpressionStatement, which would otherwise turn this back into
-// three separate Basic I/O blocks. That's only safe to prefer because the
-// pattern is highly specific -- all three pins literal and drawn from one
-// motor's own (IN1, IN2, PWM) triple, in that order, with the two IN pins
-// set to *opposite* HIGH/LOW states. Code that happens to touch these pins
-// any other way still falls through to the plain I/O blocks.
-const MOTOR_DRIVES = [
-  // [in1Pin, in2Pin, pwmPin, in1State, in2State] -> block type
-  { in1: 2, in2: 4, pwm: 3, in1State: 'LOW', in2State: 'HIGH', type: 'motor_right_forward' },
-  { in1: 2, in2: 4, pwm: 3, in1State: 'HIGH', in2State: 'LOW', type: 'motor_right_backward' },
-  { in1: 7, in2: 8, pwm: 5, in1State: 'HIGH', in2State: 'LOW', type: 'motor_left_forward' },
-  { in1: 7, in2: 8, pwm: 5, in1State: 'LOW', in2State: 'HIGH', type: 'motor_left_backward' },
+// six separate Basic I/O blocks. That's only safe to prefer because the
+// pattern is highly specific -- all six pins literal, drawn from the two
+// motors' own triples in that exact order, with both motors given the same
+// speed expression and a recognized direction pairing. Code that happens to
+// touch these pins any other way (one motor alone, a different order) still
+// falls through to the plain I/O blocks.
+const RIGHT_MOTOR = { in1: 2, in2: 4, pwm: 3 };
+const LEFT_MOTOR = { in1: 7, in2: 8, pwm: 5 };
+
+// The (IN1, IN2) states each motor gets per movement -- mirrors MOVEMENTS in
+// generators/arduino/motors.js, where the mounting-direction reasoning lives.
+const MOTOR_MOVEMENTS = [
+  { dir: 'FORWARD', turn: false, right: ['LOW', 'HIGH'], left: ['HIGH', 'LOW'] },
+  { dir: 'BACKWARD', turn: false, right: ['HIGH', 'LOW'], left: ['LOW', 'HIGH'] },
+  { dir: 'RIGHT', turn: true, right: ['HIGH', 'LOW'], left: ['HIGH', 'LOW'] },
+  { dir: 'LEFT', turn: true, right: ['LOW', 'HIGH'], left: ['LOW', 'HIGH'] },
 ];
 
 // A literal pin argument, as a number -- undefined for anything else (a
@@ -231,32 +237,98 @@ function digitalWriteParts(node) {
   return { pin, state: args[1].text };
 }
 
-function tryMotorDrive(nodes, i, ctx, scope) {
+// One motor's three lines at nodes[i..i+2], as the states/speed they write --
+// undefined unless all three are literal writes to that motor's own pins, in
+// (IN1, IN2, PWM) order.
+function motorTriple(nodes, i, motor) {
   const first = digitalWriteParts(nodes[i]);
-  if (!first) return undefined;
   const second = nodes[i + 1] ? digitalWriteParts(nodes[i + 1]) : undefined;
-  if (!second) return undefined;
-
+  if (!first || !second) return undefined;
+  if (first.pin !== motor.in1 || second.pin !== motor.in2) return undefined;
   const third = nodes[i + 2] ? exprOf(nodes[i + 2]) : null;
   if (!isCallTo(third, 'analogWrite')) return undefined;
-  const thirdArgs = callArgs(third);
-  if (thirdArgs.length !== 2) return undefined;
-  const pwmPin = literalPin(thirdArgs[0]);
-  if (pwmPin === undefined) return undefined;
+  const args = callArgs(third);
+  if (args.length !== 2 || literalPin(args[0]) !== motor.pwm) return undefined;
+  return { in1State: first.state, in2State: second.state, speedNode: args[1] };
+}
 
-  const match = MOTOR_DRIVES.find(
-    (m) =>
-      m.in1 === first.pin &&
-      m.in1State === first.state &&
-      m.in2 === second.pin &&
-      m.in2State === second.state &&
-      m.pwm === pwmPin,
+function motorPair(nodes, i) {
+  const right = motorTriple(nodes, i, RIGHT_MOTOR);
+  const left = right ? motorTriple(nodes, i + 3, LEFT_MOTOR) : undefined;
+  return right && left ? { right, left } : undefined;
+}
+
+// Both motors braked at zero -- what motor_stop emits, and what the timed
+// blocks emit after their delay().
+function isMotorStop(nodes, i) {
+  const pair = motorPair(nodes, i);
+  if (!pair) return false;
+  return [pair.right, pair.left].every(
+    (t) =>
+      t.in1State === 'LOW' &&
+      t.in2State === 'LOW' &&
+      t.speedNode.type === 'number_literal' &&
+      Number(t.speedNode.text) === 0,
   );
-  if (!match) return undefined;
+}
 
-  const speed = recognizeExpression(thirdArgs[1], ctx, scope);
+// A recognized movement (both motors, one speed, a known direction pairing),
+// or undefined.
+function motorMovement(nodes, i) {
+  const pair = motorPair(nodes, i);
+  if (!pair) return undefined;
+  if (pair.right.speedNode.text !== pair.left.speedNode.text) return undefined;
+  const move = MOTOR_MOVEMENTS.find(
+    (m) =>
+      m.right[0] === pair.right.in1State &&
+      m.right[1] === pair.right.in2State &&
+      m.left[0] === pair.left.in1State &&
+      m.left[1] === pair.left.in2State,
+  );
+  return move ? { move, speedNode: pair.right.speedNode } : undefined;
+}
+
+// Stop is checked first: its all-LOW states aren't one of MOTOR_MOVEMENTS'
+// pairings, so the two can't both match, and checking it up front keeps the
+// "drive, delay, stop" lookahead below from having to special-case it.
+//
+// A "for N seconds" block and the hand-built equivalent (set speed, wait,
+// stop motors) compile to identical code, so an import of that sequence
+// necessarily comes back as the single timed block. That's the more natural
+// reading of the code, and the behaviour is the same either way.
+function tryMotor(nodes, i, ctx, scope) {
+  if (isMotorStop(nodes, i)) return { count: 6, block: { type: 'motor_stop' } };
+
+  const movement = motorMovement(nodes, i);
+  if (!movement) return undefined;
+  const speed = recognizeExpression(movement.speedNode, ctx, scope);
   if (!speed) return FAILED;
-  return { count: 3, block: { type: match.type, inputs: input('SPEED', speed) } };
+  const { dir, turn } = movement.move;
+
+  const delayExpr = nodes[i + 6] ? exprOf(nodes[i + 6]) : null;
+  const delayArgs = isCallTo(delayExpr, 'delay') ? callArgs(delayExpr) : [];
+  const secondsExpr = delayArgs.length === 1 ? extractSecondsExpr(delayArgs[0]) : undefined;
+  if (secondsExpr && isMotorStop(nodes, i + 7)) {
+    const time = recognizeExpression(secondsExpr, ctx, scope);
+    if (!time) return FAILED;
+    return {
+      count: 13,
+      block: {
+        type: turn ? 'motor_turn_for' : 'motor_drive_for',
+        fields: { DIR: dir },
+        inputs: { ...input('SPEED', speed), ...input('TIME', time) },
+      },
+    };
+  }
+
+  return {
+    count: 6,
+    block: {
+      type: turn ? 'motor_set_turn' : 'motor_set_drive',
+      fields: { DIR: dir },
+      inputs: input('SPEED', speed),
+    },
+  };
 }
 
 // --- io_wait: delay(<t> * 1000) or a bare delay(<ms>) ---------------------
@@ -323,7 +395,7 @@ function recognizeOne(nodes, i, ctx, scope) {
   if (consumed) return { count: 1, block: null };
   if (tryServoAttachLine(node, ctx)) return { count: 1, block: null };
 
-  for (const tryFn of [tryMotorDrive, trySoundPlayNote, tryIrStartReceiver]) {
+  for (const tryFn of [tryMotor, trySoundPlayNote, tryIrStartReceiver]) {
     const result = tryFn(nodes, i, ctx, scope);
     if (result !== undefined) return result === FAILED ? FAILED : result;
   }
