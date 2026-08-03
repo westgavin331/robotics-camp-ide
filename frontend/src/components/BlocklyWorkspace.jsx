@@ -22,7 +22,7 @@ import {
 import { applyEditCascade } from '../blockly/myBlocks/cascade.js';
 import { findCallSitesElsewhere, disposeAllInstances } from '../blockly/myBlocks/deleteBlock.js';
 import { generateArduinoCode } from '../blockly/generators/arduino/index.js';
-import { updateIrHoldWarnings } from '../blockly/warnings.js';
+import { updateWorkspaceWarnings } from '../blockly/warnings.js';
 import {
   serializeProject,
   loadProject,
@@ -86,7 +86,7 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
     if (!workspace) return;
     loadProject(workspace, project);
     onCodeChange(generateArduinoCode(workspace));
-    updateIrHoldWarnings(workspace);
+    updateWorkspaceWarnings(workspace);
     // Immediate, not debounced -- a kid who loads/clears a project and closes
     // the laptop before making any further edits should still find it that
     // way next time, not the state from before.
@@ -181,13 +181,13 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
       }
       if (!REGENERATE_ON.has(event.type)) return;
       onCodeChange(generateArduinoCode(workspace));
-      updateIrHoldWarnings(workspace);
+      updateWorkspaceWarnings(workspace);
       scheduleAutosaveWrite(workspace);
     };
 
     workspace.addChangeListener(regenerate);
     onCodeChange(generateArduinoCode(workspace));
-    updateIrHoldWarnings(workspace);
+    updateWorkspaceWarnings(workspace);
 
     // Watches the container's own size, not just window resize -- toggling
     // "Hide Tools"/"View Code" or dragging the hardware panel's resize
@@ -261,7 +261,7 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
       block.render();
       block.moveBy(480, 30 + (getCustomBlocks().length - 1) * 160);
       onCodeChange(generateArduinoCode(workspace));
-      updateIrHoldWarnings(workspace);
+      updateWorkspaceWarnings(workspace);
       saveAutosave(workspace);
     }
     setDialogState(null);
@@ -277,7 +277,7 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
     if (workspace) {
       applyEditCascade(workspace, def, diff);
       onCodeChange(generateArduinoCode(workspace));
-      updateIrHoldWarnings(workspace);
+      updateWorkspaceWarnings(workspace);
       saveAutosave(workspace);
     }
     setDialogState(null);
@@ -297,7 +297,7 @@ const BlocklyWorkspace = forwardRef(function BlocklyWorkspace({ onCodeChange }, 
       disposeAllInstances(workspace, def);
       unregisterCustomBlock(defId);
       onCodeChange(generateArduinoCode(workspace));
-      updateIrHoldWarnings(workspace);
+      updateWorkspaceWarnings(workspace);
       saveAutosave(workspace);
     }
     setDialogState(null);

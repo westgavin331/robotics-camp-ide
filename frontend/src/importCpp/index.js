@@ -37,12 +37,21 @@ export { ImportRejected } from './errors.js';
 //     own min()/max()-wrapped shape and a bare random(a,b))
 //   - Variables: global float/int/double/long/bool/String declarations,
 //     get/set, and "x = x + delta" as change-by
+//   - Lists: a `float name[N];` array paired with its `byte nameLength = 0;`
+//     counter, the six shared helper functions the Lists blocks generate
+//     (matched by whole-body shape, so renaming them is fine) and their call
+//     sites, plus `nameLength = 0` as "delete all". N has to be one of the
+//     sizes the size dropdown offers. Since the declarations are globals with
+//     no position of their own in setup()/loop(), the matching "create list"
+//     blocks are placed at the top of setup() on the way back in
 //   - My Blocks: void CustomFunction(int/float/String/bool params) {...}
 //     and its call sites, in any order relative to each other
 //
 // Explicitly out of scope (will cause a rejection, not a guess): classes/
-// structs (besides the one recognized `Servo` variable pattern), arrays,
-// pointers, switch/case, #define macros, non-void custom functions,
+// structs (besides the one recognized `Servo` variable pattern), arrays other
+// than the one recognized list shape above (indexing one directly, in
+// particular, has no block -- the Lists blocks are the only way to touch a
+// list), pointers, switch/case, #define macros, non-void custom functions,
 // dynamic-bounds for loops, bitwise operators (besides the one fixed
 // IR-repeat-flag expression), and anything else with no matching block.
 //

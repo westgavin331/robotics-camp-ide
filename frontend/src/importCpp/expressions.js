@@ -1,4 +1,5 @@
 import { unwrapParens } from './cst.js';
+import { tryListCall, tryListIdentifier } from './lists.js';
 
 // Recognizes a C++ expression node and returns a Blockly value block-state
 // (`{type, fields?, inputs?}`, matching Blockly.serialization.blocks'
@@ -54,6 +55,10 @@ function lookupIdentifier(node, ctx, scope) {
   if (scope && scope.has(name)) {
     return { type: scope.get(name).getterType };
   }
+  // A list's length counter reads back as "length of [list]"; the list array
+  // itself gets a message of its own rather than the not-a-variable one below.
+  const asList = tryListIdentifier(node, ctx);
+  if (asList !== undefined) return asList.block;
   if (ctx.variables.has(name)) {
     return { type: 'variables_get', fields: { VAR: { id: ctx.variables.get(name).id } } };
   }
@@ -154,6 +159,8 @@ function recognizeCall(node, ctx, scope) {
     if (!pin) return null;
     return { type: 'io_analog_read', inputs: input('PIN', pin) };
   }
+  const asListCall = tryListCall(name, args, node, ctx, scope);
+  if (asListCall !== undefined) return asListCall;
   if (ctx.distanceHelperNames.has(name) && args.length === 2) {
     const trig = recognizeExpression(args[0], ctx, scope);
     const echo = recognizeExpression(args[1], ctx, scope);

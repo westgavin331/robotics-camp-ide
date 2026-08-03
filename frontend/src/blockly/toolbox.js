@@ -2,7 +2,8 @@
 // (custom hardware blocks, spec section 2), a minimal "Serial" debug helper
 // (not in the spec, see blocks/serial.js), plus the standard Blockly
 // "Control flow", "Operators" (logic + math + text, grouped together per
-// spec) and "Variables" categories.
+// spec) and "Variables" categories, and a Scratch-style "Lists" category
+// (blocks/lists.js).
 //
 // Category chip colours come from CATEGORY_COLOURS (theme.js) -- the same
 // values the block styles themselves are built from -- so the toolbox
@@ -281,6 +282,59 @@ export const toolbox = {
       name: 'Variables',
       colour: CATEGORY_COLOURS.variables,
       custom: 'VARIABLES_WITH_CHANGE',
+    },
+    // Lists are Blockly variables of their own 'List' type (blocks/lists.js),
+    // so unlike Variables above this is a plain static category -- the
+    // dropdown on every block already offers every list plus rename/delete,
+    // and "create list" is a real block rather than a flyout button, so
+    // there's nothing dynamic left for a custom callback to contribute.
+    // INDEX shadows default to 1, not 0: these blocks are 1-based, matching
+    // Scratch, and a shadow reading 0 would suggest otherwise.
+    {
+      kind: 'category',
+      name: 'Lists',
+      colour: CATEGORY_COLOURS.lists,
+      contents: [
+        { kind: 'block', type: 'list_create', fields: { SIZE: '20' } },
+        {
+          kind: 'block',
+          type: 'list_add',
+          inputs: { ITEM: { shadow: { type: 'math_number', fields: { NUM: 1 } } } },
+        },
+        {
+          kind: 'block',
+          type: 'list_delete',
+          inputs: { INDEX: { shadow: { type: 'math_number', fields: { NUM: 1 } } } },
+        },
+        { kind: 'block', type: 'list_delete_all' },
+        {
+          kind: 'block',
+          type: 'list_insert',
+          inputs: {
+            ITEM: { shadow: { type: 'math_number', fields: { NUM: 1 } } },
+            INDEX: { shadow: { type: 'math_number', fields: { NUM: 1 } } },
+          },
+        },
+        {
+          kind: 'block',
+          type: 'list_replace',
+          inputs: {
+            INDEX: { shadow: { type: 'math_number', fields: { NUM: 1 } } },
+            ITEM: { shadow: { type: 'math_number', fields: { NUM: 1 } } },
+          },
+        },
+        {
+          kind: 'block',
+          type: 'list_item',
+          inputs: { INDEX: { shadow: { type: 'math_number', fields: { NUM: 1 } } } },
+        },
+        { kind: 'block', type: 'list_length' },
+        {
+          kind: 'block',
+          type: 'list_contains',
+          inputs: { ITEM: { shadow: { type: 'math_number', fields: { NUM: 1 } } } },
+        },
+      ],
     },
     {
       kind: 'category',

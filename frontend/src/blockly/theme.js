@@ -89,6 +89,11 @@ export const CATEGORY_COLOURS = {
   control: '#FFAB19', // Scratch "Control" orange
   operators: '#40BF4A', // Scratch "Operators" green
   variables: '#EE7D16', // Scratch "Variables" orange-red -- distinct from Control
+  // Scratch's own list colour, which sits deliberately close to Variables
+  // above (Scratch groups lists *inside* its Variables category) -- the same
+  // "same hue family, because they really are the same idea" relationship
+  // camp_hat_blocks has with Control below, rather than an accidental clash.
+  lists: '#FF661A',
   myBlocks: '#FF6680', // Scratch "My Blocks" pink/red
 };
 
@@ -105,6 +110,7 @@ export const scratchTheme = Blockly.Theme.defineTheme('scratch_style', {
     camp_control_blocks: styleFrom(CATEGORY_COLOURS.control),
     camp_operators_blocks: styleFrom(CATEGORY_COLOURS.operators),
     camp_variables_blocks: styleFrom(CATEGORY_COLOURS.variables),
+    camp_lists_blocks: styleFrom(CATEGORY_COLOURS.lists),
     // Same hue family as Control Flow (this block IS fundamentally a
     // control-flow/entry-point concept) but with the Scratch hat-block cap
     // shape, so it's still immediately recognisable as the special one.

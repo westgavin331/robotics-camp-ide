@@ -72,6 +72,13 @@ arduinoGenerator.init = function init(workspace) {
   // against several values in an if/else-if chain) only registers its
   // once-per-tick bookkeeping once. See addLoopTop().
   this.loopTops_ = Object.create(null);
+  // List variable id -> {array, length, capacity} (see generators/lists.js).
+  // Lists are the one thing here whose C name isn't derivable from the
+  // Blockly variable alone -- each also needs a second, separate identifier
+  // for its length counter, and every block referencing that list has to
+  // agree on both. Cached here rather than recomputed per block so the
+  // deduper hands the counter its name exactly once per run.
+  this.listVarNames_ = new Map();
 
   this.nameDB_ = new Blockly.Names([...RESERVED_WORDS_LIST, ...dynamicReservedWords].join(','));
   this.nameDB_.setVariableMap(workspace.getVariableMap());
@@ -129,6 +136,20 @@ arduinoGenerator.scrub_ = function scrub_(block, code, opt_thisOnly) {
   return code + nextCode;
 };
 
+// definitions_ mixes one-line global declarations (`float x;`, a list's array
+// and counter) with whole multi-line helper functions that provideFunction_
+// put there (readDistanceCM, the six list helpers). Packing those together
+// one-per-line makes a run of functions read as a single wall of code, so
+// anything multi-line gets a blank line separating it from its neighbours
+// while consecutive one-liners stay grouped.
+function joinDefinitions(definitions) {
+  return definitions.reduce((text, definition, index) => {
+    if (index === 0) return definition;
+    const needsGap = definition.includes('\n') || definitions[index - 1].includes('\n');
+    return `${text}${needsGap ? '\n\n' : '\n'}${definition}`;
+  }, '');
+}
+
 // Assembles the final .ino text: #includes, global variable declarations,
 // then setup() and loop(). setupCode/loopCode are the two buckets
 // generateArduinoCode() below sorts the entry-point hat's children into;
@@ -147,7 +168,7 @@ arduinoGenerator.finish = function finish(setupCode, loopCode) {
   const hoistedLoopTopLines = Object.values(this.loopTops_);
 
   const includesText = includes.length ? `${includes.join('\n')}\n\n` : '';
-  const defsText = definitions.length ? `${definitions.join('\n')}\n\n` : '';
+  const defsText = definitions.length ? `${joinDefinitions(definitions)}\n\n` : '';
   // "My Blocks" function definitions, emitted after global variables and
   // before setup()/loop() -- Arduino's build system auto-generates forward
   // declarations from the sketch anyway, so this ordering is purely for

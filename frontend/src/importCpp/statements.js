@@ -1,5 +1,6 @@
 import { recognizeExpression } from './expressions.js';
 import { unwrapParens, conditionValue } from './cst.js';
+import { tryListStatement } from './lists.js';
 
 // Recognizes a *list* of sibling statements (a function body, or an
 // if/while/for/forever's own body) into a Blockly next-chain. Returns:
@@ -331,6 +332,12 @@ function recognizeOne(nodes, i, ctx, scope) {
     const result = tryFn(node, ctx, scope);
     if (result !== undefined) return result === FAILED ? FAILED : result;
   }
+
+  // Ahead of recognizeSingleStatement below, which would otherwise report a
+  // list helper call as an unknown function and `<counter> = 0;` as an
+  // assignment to an undeclared variable.
+  const listStatement = tryListStatement(node, ctx, scope, FAILED);
+  if (listStatement !== undefined) return listStatement;
 
   const irIf = tryIrIfReceived(node, ctx, scope);
   if (irIf !== undefined) return irIf;

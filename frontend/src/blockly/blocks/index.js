@@ -6,6 +6,7 @@ import './sound.js';
 import './ir.js';
 import './serial.js';
 import './motors.js';
+import './lists.js';
 import './textShadow.js';
 import { recolorStockBlocks } from './recolorStock.js';
 import { overrideDuplicateForStacks } from './deepDuplicate.js';

@@ -37,7 +37,28 @@ export class ImportContext {
     // turned into a My Blocks custom function); only their *call sites*
     // become blocks (sensor_read_distance).
     this.distanceHelperNames = new Set();
+    // Lists (see lists.js), in declaration order. Keyed by the ARRAY's name:
+    // list name -> {id, name, capacity, lengthName}. `id` is handed to the
+    // LIST field on every list block, and each of these also becomes an
+    // entry in the project's `variables` array -- typed 'List', which is what
+    // keeps lists out of the plain Variables category.
+    this.lists = new Map();
+    // The reverse lookup, counter name -> list name, so `scoresLength` can be
+    // recognized as "length of scores" (and `scoresLength = 0` as "delete all
+    // of scores") without re-deriving the pairing at every use.
+    this.listLengthNames = new Map();
+    // Top-level function name -> which list helper it is ('add', 'item', ...),
+    // filled in by the shape match in lists.js. Like distanceHelperNames
+    // above, these functions are consumed entirely -- only their call sites
+    // become blocks.
+    this.listHelperNames = new Map();
+    // Array/counter names belonging to something that *looked* like a list
+    // but was already rejected with a specific reason (no counter, an
+    // unsupported size). Kept so the generic "unsupported global declaration"
+    // pass doesn't report the same declaration a second, vaguer time.
+    this.rejectedListNames = new Set();
     this._varCounter = 0;
+    this._listCounter = 0;
   }
 
   error(node, message) {
@@ -46,6 +67,14 @@ export class ImportContext {
 
   get hasErrors() {
     return this.errors.length > 0;
+  }
+
+  addList(name, lengthName, capacity) {
+    if (this.lists.has(name)) return this.lists.get(name);
+    const list = { id: `import_list_${this._listCounter++}`, name, capacity, lengthName };
+    this.lists.set(name, list);
+    this.listLengthNames.set(lengthName, name);
+    return list;
   }
 
   getOrCreateVariable(name) {

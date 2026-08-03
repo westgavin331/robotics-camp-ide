@@ -1,6 +1,12 @@
 import { recognizeStatementList, FAILED, scanServoAttachPins } from './statements.js';
 import { createNameDeduper } from './identifiers.js';
 import { unwrapParens } from './cst.js';
+import {
+  scanListDeclarations,
+  isListDeclaration,
+  matchListHelper,
+  listCreateBlockStates,
+} from './lists.js';
 
 const CTYPE_TO_PARAM_TYPE = { int: 'number', float: 'number', double: 'number', long: 'number', String: 'text', bool: 'boolean' };
 const GLOBAL_VAR_TYPES = new Set(['float', 'int', 'double', 'long', 'bool', 'String']);
@@ -15,6 +21,11 @@ function recognizeGlobalDeclaration(node, ctx) {
   const typeNode = node.childForFieldName('type');
   const declNode = node.childForFieldName('declarator');
   const typeText = typeNode?.text;
+
+  // Both halves of a list (the array and its counter) were already claimed
+  // as a pair by scanListDeclarations below -- nothing more to do here, and
+  // neither half is a plain variable.
+  if (isListDeclaration(node, ctx)) return;
 
   if (typeText === 'Servo' && declNode?.type === 'identifier') {
     ctx.servoVars.add(declNode.text);
@@ -172,6 +183,11 @@ export function buildProjectFromCpp(tree, ctx) {
   const customFnNodes = [];
   const globalDedupe = createNameDeduper();
 
+  // Pairs up each `float name[N];` with its `byte nameLength = 0;` before
+  // anything else looks at the globals, since neither half means anything on
+  // its own and they can appear in either order (see lists.js).
+  scanListDeclarations(root, ctx);
+
   for (const node of root.namedChildren) {
     if (node.type === 'comment' || node.type === 'preproc_include') continue;
     if (node.type === 'preproc_def' || node.type === 'preproc_function_def') {
@@ -193,7 +209,11 @@ export function buildProjectFromCpp(tree, ctx) {
       } else if (matchesDistanceHelperTemplate(node)) {
         ctx.distanceHelperNames.add(name);
       } else {
-        customFnNodes.push({ node, name });
+        // Same deal as the distance helper: a matched list helper is
+        // consumed whole, and only its call sites turn into blocks.
+        const listHelperKind = matchListHelper(node);
+        if (listHelperKind) ctx.listHelperNames.set(name, listHelperKind);
+        else customFnNodes.push({ node, name });
       }
       continue;
     }
@@ -241,21 +261,35 @@ export function buildProjectFromCpp(tree, ctx) {
   // generators/arduino/core.js interprets it: setup's statements go
   // directly under the hat, then a forever block wrapping loop's
   // statements is appended as the last element of that same chain.
+  //
+  // The "create list" blocks go in front of everything else in that chain --
+  // they stand for global array declarations, which have no position in
+  // setup()/loop() of their own to be recovered from (see
+  // listCreateBlockStates).
   const forever = { type: 'controls_forever', ...(loopBody ? { inputs: { DO: { block: loopBody } } } : {}) };
-  let hatNext = forever;
-  if (setupBody) {
-    hatNext = setupBody;
-    let tail = hatNext;
+  const chain = [...listCreateBlockStates(ctx), ...(setupBody ? [setupBody] : []), forever];
+  for (let i = chain.length - 2; i >= 0; i -= 1) {
+    let tail = chain[i];
     while (tail.next) tail = tail.next.block;
-    tail.next = { block: forever };
+    tail.next = { block: chain[i + 1] };
   }
-  const hat = { type: 'arduino_start', x: 0, y: 0, next: { block: hatNext } };
+  const hat = { type: 'arduino_start', x: 0, y: 0, next: { block: chain[0] } };
+
+  // Lists are variables of type 'List' (see blocks/lists.js) -- the LIST
+  // field on every list block validates against that type and refuses a
+  // variable that doesn't carry it, so it has to be here and not just on the
+  // fields.
+  const listVariables = [...ctx.lists.values()].map((list) => ({
+    id: list.id,
+    name: list.name,
+    type: 'List',
+  }));
 
   return {
     version: 1,
     workspace: {
       blocks: { languageVersion: 0, blocks: [hat, ...defineBlockStates] },
-      variables: [...ctx.variables.values()],
+      variables: [...ctx.variables.values(), ...listVariables],
     },
     customBlocks,
   };
