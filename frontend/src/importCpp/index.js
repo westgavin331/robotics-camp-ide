@@ -32,7 +32,8 @@ export { ImportRejected } from './errors.js';
 //     dropped, like pinMode, since it's implicit in every generated sketch)
 //   - Control Flow: if/else if/else, while, for (repeat-N-times shape and
 //     the literal-bounds counting shape -- a dynamic/non-literal-bounds for
-//     loop is NOT supported), forever (while(true) or while(1)), break/continue
+//     loop is NOT supported), forever (while(true) or while(1)), wait until
+//     (a `while (!(cond)) {}` spin over an empty body), break/continue
 //   - Operators: all comparison/logic/arithmetic operators, unary negate/
 //     not, ternary, the math functions each math block generates (sqrt,
 //     abs, round/ceil/floor, fmod or bare %, pow, random -- both this app's

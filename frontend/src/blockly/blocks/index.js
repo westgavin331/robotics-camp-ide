@@ -1,5 +1,6 @@
 import './hat.js';
 import './forever.js';
+import './waitUntil.js';
 import './io.js';
 import './sensors.js';
 import './sound.js';

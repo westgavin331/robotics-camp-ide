@@ -18,6 +18,23 @@ generator.forBlock['controls_whileUntil'] = function (block, gen) {
   return `while (${cond}) {\n${branch}}\n`;
 };
 
+// A spin loop with an empty body, which is exactly "keep re-evaluating the
+// condition until it's true". The condition is wrapped in its own parens
+// before being negated so a compound one (`a && b`) negates as a whole.
+//
+// No delay() inside the spin, matching every other loop generator in this
+// file -- none of them inject one either, and the delay() calls elsewhere in
+// generators/arduino are all deliberate timing (io_wait, a note's duration,
+// the distance sensor's required recycle time), never busy-loop padding.
+// It's also the right thing on an AVR specifically: there's no scheduler to
+// yield to and no watchdog running by default, so a tight poll is simply the
+// fastest way to notice the condition, and padding it would only add latency
+// to what a kid sees as "the robot reacted".
+generator.forBlock['wait_until'] = function (block, gen) {
+  const cond = gen.valueToCode(block, 'CONDITION', gen.ORDER_NONE) || 'false';
+  return `while (!(${cond})) {\n}\n`;
+};
+
 // Mirrors Blockly's own controls_for generators: emit a plain C-style for
 // loop when FROM/TO/BY are all numeric literals, otherwise cache the
 // (possibly non-constant) bounds in temp variables and pick the loop

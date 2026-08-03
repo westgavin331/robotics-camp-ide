@@ -600,6 +600,14 @@ function recognizeIf(node, ctx, scope) {
   return { type: 'controls_if', extraState, fields, inputs };
 }
 
+// The `<expr>` inside `!(<expr>)`, or undefined if this isn't a negation --
+// the shape wait_until's generator always produces for its condition.
+function negatedOperand(node) {
+  if (!node || node.type !== 'unary_expression') return undefined;
+  if (node.childForFieldName('operator')?.type !== '!') return undefined;
+  return unwrapParens(node.childForFieldName('argument'));
+}
+
 function recognizeWhile(node, ctx, scope) {
   const condNode = conditionValue(node.childForFieldName('condition'));
   const bodyNode = node.childForFieldName('body');
@@ -611,6 +619,25 @@ function recognizeWhile(node, ctx, scope) {
     const body = recognizeStatementList(bodyNode.namedChildren, ctx, scope);
     if (body === FAILED) return FAILED;
     return { type: 'controls_forever', inputs: body ? input('DO', body) : {} };
+  }
+
+  // wait_until: `while (!(<cond>)) {}` -- a negated spin over an empty body.
+  // Checked ahead of the generic while below, which would otherwise read it
+  // as "repeat while <not cond>" with an empty body: same behaviour, but a
+  // loop block that visibly does nothing, and with an extra `not` block
+  // wrapped around a condition the kid never wrote one on.
+  //
+  // An empty "repeat until" compiles to this identical code, so that one
+  // necessarily comes back as wait_until. Nothing is lost by preferring it:
+  // an empty repeat-until is a no-op shell whose only actual effect IS
+  // waiting, and the importer never produced the UNTIL mode in the first
+  // place (a negated while has always come back as WHILE + a `not` block).
+  const bodyStatements = bodyNode.namedChildren.filter((n) => n.type !== 'comment');
+  const waitCondNode = bodyStatements.length === 0 ? negatedOperand(condNode) : undefined;
+  if (waitCondNode) {
+    const cond = recognizeExpression(waitCondNode, ctx, scope);
+    if (!cond) return FAILED;
+    return { type: 'wait_until', inputs: input('CONDITION', cond) };
   }
   const cond = recognizeExpression(condNode, ctx, scope);
   const body = recognizeStatementList(bodyNode.namedChildren, ctx, scope);

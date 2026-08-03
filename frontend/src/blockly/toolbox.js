@@ -181,6 +181,7 @@ export const toolbox = {
           extraState: { hasElse: true },
         },
         { kind: 'block', type: 'controls_whileUntil' },
+        { kind: 'block', type: 'wait_until' },
         {
           kind: 'block',
           type: 'controls_repeat_ext',
