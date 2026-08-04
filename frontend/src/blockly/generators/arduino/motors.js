@@ -2,7 +2,14 @@ import { arduinoGenerator as generator } from './core.js';
 
 // TB6612FNG wiring is fixed for this app's one robot chassis, so these are
 // plain constants rather than block fields (see blocks/motors.js).
-const RIGHT = { in1: 2, in2: 4, pwm: 3 }; // motor A
+//
+// PWMA is pin 6, NOT pin 3. Pin 3 is driven by Timer2, which is the same
+// timer IRremote reconfigures for its 50us receive tick -- with the IR
+// receiver running, analogWrite() on pin 3 no longer produces the duty
+// cycle it was asked for, so motor A had no usable speed control in any
+// program that also used the IR Remote blocks. Pins 5 and 6 are both on
+// Timer0, which IRremote leaves alone.
+const RIGHT = { in1: 2, in2: 4, pwm: 6 }; // motor A
 const LEFT = { in1: 7, in2: 8, pwm: 5 }; // motor B
 
 // IN1=HIGH/IN2=LOW spins a motor clockwise, IN1=LOW/IN2=HIGH spins it

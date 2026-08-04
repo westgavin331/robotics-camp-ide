@@ -9,17 +9,22 @@
 // values the block styles themselves are built from -- so the toolbox
 // sidebar and the blocks it produces are always in sync.
 //
-// Default pin choices below deliberately avoid 2, 3, 4, 5, 7 and 8: those
+// Default pin choices below deliberately avoid 2, 4, 5, 6, 7 and 8: those
 // are hard-wired to the TB6612FNG motor driver (see blocks/motors.js), and
 // unlike every other pin here that wiring is fixed -- a kid can't move it
 // with a dropdown. The motors are always physically present on the
 // chassis, so a default that collided with one would silently fight the
 // motor driver for the pin (reservePinMode dedupes by pin, so only one
-// pinMode survives) for any program that used both. Pins 6 and 9-13 are
+// pinMode survives) for any program that used both. Pins 3 and 9-13 are
 // the free ones; overlaps *among* the defaults below (e.g. digital read
 // and the IR receiver both suggesting 12) are fine and pre-existing --
 // they're starting suggestions for blocks rarely used together, and either
 // one can be moved with its dropdown.
+//
+// Pin 6 used to be free and pin 3 reserved; they swapped when PWMA moved
+// off Timer2 to stop IRremote from breaking motor A's speed control (see
+// generators/arduino/motors.js). The distance sensor's ECHO default moved
+// 6 -> 3 with it.
 import { CATEGORY_COLOURS } from './theme.js';
 
 export const toolbox = {
@@ -76,7 +81,7 @@ export const toolbox = {
         {
           kind: 'block',
           type: 'sensor_read_distance',
-          fields: { TRIG: '11', ECHO: '6' },
+          fields: { TRIG: '11', ECHO: '3' },
         },
       ],
     },

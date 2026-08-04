@@ -38,14 +38,28 @@ generator.forBlock['ir_repeat_received'] = function (block, gen) {
   return ['(IrReceiver.decodedIRData.flags & IRDATA_FLAGS_IS_REPEAT)', gen.ORDER_ATOMIC];
 };
 
-// Ticks a kid would otherwise have to track by hand -- last-held command,
-// resets to 0 once nothing's arrived for IR_IDLE_TIMEOUT_TICKS loop
-// iterations -- to decide the button was released. Threshold and
-// reset-on-signal logic match the by-hand version this replaces exactly,
-// just relocated from the kid's own blocks into hidden generator state.
+// Bookkeeping a kid would otherwise have to do by hand -- hold on to the
+// last command received, and drop back to 0 once nothing has arrived for a
+// while, which is what "the button was released" looks like from here.
+//
+// The idle timeout is a DURATION, deliberately, not a count of loop
+// iterations. A held NEC button re-sends a repeat frame roughly every 110ms,
+// so anything measuring the gap in loop passes is really measuring loop
+// speed: at a typical few-tens-of-microseconds per iteration an
+// iteration-counted timeout expires within a fraction of a millisecond of
+// each frame, and the "held" command reads 0 for ~99% of the time the button
+// is physically down. Worse, it silently starts working as the loop gets
+// slower, so adding blocks appears to fix it.
+//
+// 150ms clears the 110ms repeat interval with enough margin for loop jitter.
+// Raising it toward ~250ms would also ride out a single dropped repeat frame,
+// at the cost of the motors coasting a little longer after a release.
+//
+// millis() is unsigned, so the subtraction below stays correct across the
+// ~49-day rollover -- do not rewrite it as `millis() > last + timeout`.
 const IR_HELD_COMMAND_VAR = 'irHeldCommand';
-const IR_IDLE_TICKS_VAR = 'irIdleTicks';
-const IR_IDLE_TIMEOUT_TICKS = 20;
+const IR_LAST_SIGNAL_VAR = 'irLastSignalMs';
+const IR_IDLE_TIMEOUT_MS = 150;
 
 // Reads the tracked variable only -- does NOT call IrReceiver.decode()
 // itself. Decoding happens exactly once per loop tick, hoisted to the top
@@ -55,17 +69,15 @@ const IR_IDLE_TIMEOUT_TICKS = 20;
 generator.forBlock['ir_held_command'] = function (block, gen) {
   gen.addInclude(IR_INCLUDE_KEY, IR_INCLUDE_LINE);
   gen.definitions_[`ir_${IR_HELD_COMMAND_VAR}`] = `int ${IR_HELD_COMMAND_VAR} = 0;`;
-  gen.definitions_[`ir_${IR_IDLE_TICKS_VAR}`] = `int ${IR_IDLE_TICKS_VAR} = 0;`;
+  gen.definitions_[`ir_${IR_LAST_SIGNAL_VAR}`] = `unsigned long ${IR_LAST_SIGNAL_VAR} = 0;`;
   gen.addLoopTop(
     'ir_held_command_track',
     `if (IrReceiver.decode()) {\n` +
       `${gen.INDENT}${IR_HELD_COMMAND_VAR} = IrReceiver.decodedIRData.command;\n` +
-      `${gen.INDENT}${IR_IDLE_TICKS_VAR} = 0;\n` +
+      `${gen.INDENT}${IR_LAST_SIGNAL_VAR} = millis();\n` +
       `${gen.INDENT}IrReceiver.resume();\n` +
-      `} else {\n` +
-      `${gen.INDENT}${IR_IDLE_TICKS_VAR} = ${IR_IDLE_TICKS_VAR} + 1;\n` +
       `}\n` +
-      `if (${IR_IDLE_TICKS_VAR} > ${IR_IDLE_TIMEOUT_TICKS}) {\n` +
+      `if (millis() - ${IR_LAST_SIGNAL_VAR} > ${IR_IDLE_TIMEOUT_MS}) {\n` +
       `${gen.INDENT}${IR_HELD_COMMAND_VAR} = 0;\n` +
       `}`,
   );

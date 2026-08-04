@@ -205,7 +205,7 @@ function trySoundPlayNote(nodes, i, ctx, scope) {
 // speed expression and a recognized direction pairing. Code that happens to
 // touch these pins any other way (one motor alone, a different order) still
 // falls through to the plain I/O blocks.
-const RIGHT_MOTOR = { in1: 2, in2: 4, pwm: 3 };
+const RIGHT_MOTOR = { in1: 2, in2: 4, pwm: 6 };
 const LEFT_MOTOR = { in1: 7, in2: 8, pwm: 5 };
 
 // The (IN1, IN2) states each motor gets per movement -- mirrors MOVEMENTS in

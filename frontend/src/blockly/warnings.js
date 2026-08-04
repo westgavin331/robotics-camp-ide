@@ -2,13 +2,20 @@
 // the block itself. Two cases so far, both surfaced through
 // updateWorkspaceWarnings() at the bottom of this file:
 //
-//   1. "if IR signal received" shares a loop with a block that blocks
+//   1. An IR block that polls the receiver ("if IR signal received", or
+//      "held IR command", whose decode() is hoisted to the top of loop() --
+//      see generators/arduino/ir.js) shares a loop with a block that blocks
 //      execution (a wait, or a tone that plays-to-completion via its own
 //      delay -- see sound.js). NEC repeat frames arrive roughly every 110ms
 //      while a remote button is held; IrReceiver.decode() has to be called
 //      again inside that window to catch each one, and a blocking block
 //      sitting in the same loop stalls the whole loop() body, IR check
 //      included, for as long as it runs.
+//
+//      This matters more for "held IR command" than it looks: its idle
+//      timeout is a wall-clock 150ms, so a wait long enough to miss a repeat
+//      frame doesn't just delay the read, it makes the command read back as
+//      0 ("released") while the button is still physically held.
 //
 //   2. The workspace's lists have been sized past what an Uno can spare.
 //
@@ -22,6 +29,18 @@ const LOOP_BLOCK_TYPES = new Set([
 ]);
 
 const BLOCKING_BLOCK_TYPES = new Set(['io_wait', 'sound_play_note']);
+
+// Blocks whose generated code polls the IR receiver, and so cares how often
+// loop() comes back around. `ir_held_command` is a reporter rather than a
+// statement, and the decode() it registers actually runs at the top of
+// loop() rather than at the block's own position -- so strictly, ANY
+// blocking block in the same loop() body delays it, not only one sharing a
+// loop ancestor with wherever the reporter happens to be plugged in. The
+// shared-ancestor test below is used for both anyway: it catches every
+// realistic arrangement (the reporter is virtually always read inside the
+// same forever loop it's polled from), and staying with one rule keeps this
+// from claiming a precision it can't act on.
+const IR_POLLING_BLOCK_TYPES = new Set(['ir_if_received', 'ir_held_command']);
 
 const IR_HOLD_WARNING =
   'A wait or sound block in this loop might cause the remote to miss button holds.';
@@ -60,7 +79,7 @@ function shareLoopAncestor(setA, setB) {
 // so this just re-evaluates from scratch rather than tracking a diff.
 function updateIrHoldWarnings(workspace) {
   const allBlocks = workspace.getAllBlocks(false);
-  const irBlocks = allBlocks.filter((block) => block.type === 'ir_if_received');
+  const irBlocks = allBlocks.filter((block) => IR_POLLING_BLOCK_TYPES.has(block.type));
   const blockingBlocks = allBlocks.filter((block) => BLOCKING_BLOCK_TYPES.has(block.type));
 
   // Clear first: a block that had the warning last time but no longer

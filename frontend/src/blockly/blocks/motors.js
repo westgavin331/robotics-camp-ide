@@ -2,8 +2,9 @@ import * as Blockly from 'blockly/core';
 
 // "Motors" blocks: drive a TB6612FNG dual-motor driver with a single fixed
 // wiring (this app targets one specific robot chassis, not a general-
-// purpose H-bridge block) -- AIN1=2, AIN2=4, BIN1=7, BIN2=8, PWMA=~3,
-// PWMB=~5 (see generators/arduino/motors.js). No pin dropdowns, unlike the
+// purpose H-bridge block) -- AIN1=2, AIN2=4, BIN1=7, BIN2=8, PWMA=~6,
+// PWMB=~5 (see generators/arduino/motors.js, which explains why PWMA is on
+// pin 6 rather than the more obvious pin 3). No pin dropdowns, unlike the
 // Basic I/O blocks, since there's nothing for a kid to choose.
 //
 // Every block here moves *both* motors at once -- a kid thinks in terms of
