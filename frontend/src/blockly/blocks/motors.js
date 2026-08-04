@@ -1,5 +1,27 @@
 import * as Blockly from 'blockly/core';
 
+// The TB6612FNG's fixed wiring, in one place. generators/arduino/motors.js
+// turns these into the actual digitalWrite/analogWrite calls and warnings.js
+// flags any pin dropdown a kid points at one of them -- both import from
+// here rather than keeping a copy, since PWMA moving 3 -> 6 otherwise has to
+// be chased through several files at once, and missing one is silent.
+//
+// PWMA is pin 6 and NOT pin 3, deliberately: pin 3 is driven by Timer2,
+// which is the same timer IRremote reconfigures for its 50us receive tick,
+// so with the IR receiver running analogWrite() on pin 3 stopped producing
+// the duty cycle it was asked for and motor A had no usable speed control.
+// Pins 5 and 6 are both on Timer0, which IRremote leaves alone.
+//
+// (src/importCpp/statements.js keeps its own copy on purpose -- see the
+// comment there -- so the importer never has to pull in the Blockly tree.)
+export const RIGHT_MOTOR_PINS = { in1: 2, in2: 4, pwm: 6 }; // motor A
+export const LEFT_MOTOR_PINS = { in1: 7, in2: 8, pwm: 5 }; // motor B
+
+export const MOTOR_PINS = new Set([
+  ...Object.values(RIGHT_MOTOR_PINS),
+  ...Object.values(LEFT_MOTOR_PINS),
+]);
+
 // "Motors" blocks: drive a TB6612FNG dual-motor driver with a single fixed
 // wiring (this app targets one specific robot chassis, not a general-
 // purpose H-bridge block) -- AIN1=2, AIN2=4, BIN1=7, BIN2=8, PWMA=~6,

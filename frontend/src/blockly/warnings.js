@@ -19,7 +19,12 @@
 //
 //   2. The workspace's lists have been sized past what an Uno can spare.
 //
+//   3. A pin dropdown has been pointed at one of the motor driver's fixed
+//      pins, which nothing in the generated code would reveal.
+//
 import { LIST_ITEM_BYTES, LIST_LENGTH_BYTES, DEFAULT_LIST_SIZE } from './blocks/lists.js';
+import { MOTOR_PINS } from './blocks/motors.js';
+import { DIGITAL_PIN_OPTIONS } from './blocks/pinFields.js';
 
 const LOOP_BLOCK_TYPES = new Set([
   'controls_forever',
@@ -185,10 +190,67 @@ function updateListMemoryWarnings(workspace) {
   }
 }
 
+// --- Motor driver pin conflicts ---------------------------------------------
+//
+// The TB6612FNG is wired to the chassis on fixed pins (blocks/motors.js) and,
+// unlike every other pin in this app, a kid can't move it with a dropdown. So
+// a pin dropdown landing on one of those pins is always a mistake, and it's
+// an invisible one: reservePinMode dedupes by pin, so only one pinMode
+// survives and the generated sketch looks perfectly reasonable while the two
+// consumers fight over the same physical wire.
+//
+// Checked unconditionally rather than only when Motors blocks are present --
+// the driver is soldered on either way, so an LED on pin 6 contends with PWMA
+// whether or not the program ever drives a motor.
+const MOTOR_PIN_WARNING_ID = 'motorPinConflict';
+
+// The field names pin dropdowns actually use (see blocks/pinFields.js's
+// consumers: io, sensors, sound, ir). Named explicitly rather than scanning
+// every field on a block, so a numeric dropdown that has nothing to do with
+// pins -- list_create's SIZE, say -- can never be mistaken for one.
+const PIN_FIELD_NAMES = ['PIN', 'TRIG', 'ECHO'];
+
+// Derived, not written out, so it can't drift the next time a motor pin
+// moves. Analog options ("A0") are Number()'d to NaN and drop out on their
+// own, which is correct -- the motor driver is on digital pins.
+const FREE_DIGITAL_PINS = DIGITAL_PIN_OPTIONS.map(([, value]) => Number(value)).filter(
+  (pin) => !MOTOR_PINS.has(pin),
+);
+
+function updateMotorPinWarnings(workspace) {
+  for (const block of workspace.getAllBlocks(false)) {
+    const pinFields = PIN_FIELD_NAMES.filter((name) => block.getField(name));
+    if (pinFields.length === 0) continue;
+
+    const conflicts = pinFields
+      .map((name) => Number(block.getFieldValue(name)))
+      .filter((pin) => MOTOR_PINS.has(pin));
+
+    // Set (or cleared) on every pass, for the same reason as the two checks
+    // above: a block whose dropdown has just been moved off a motor pin needs
+    // the warning taken off, not left stale.
+    if (conflicts.length === 0) {
+      block.setWarningText(null, MOTOR_PIN_WARNING_ID);
+      continue;
+    }
+    // Both of a distance sensor's pins can land on the driver at once, so
+    // this reads naturally either way rather than always saying "pin(s)".
+    const pins = [...new Set(conflicts)];
+    const subject = pins.length > 1 ? `Pins ${pins.join(' and ')} are` : `Pin ${pins[0]} is`;
+    block.setWarningText(
+      `${subject} wired to the motor driver and can't be moved, so this block ` +
+        `and the motors will fight over ${pins.length > 1 ? 'them' : 'it'}. ` +
+        `Free pins are ${FREE_DIGITAL_PINS.join(', ')}.`,
+      MOTOR_PIN_WARNING_ID,
+    );
+  }
+}
+
 // Single entry point for everything in this file -- callers (see
 // BlocklyWorkspace.jsx, which re-runs this on every workspace change) don't
 // need to know which individual checks exist.
 export function updateWorkspaceWarnings(workspace) {
   updateIrHoldWarnings(workspace);
   updateListMemoryWarnings(workspace);
+  updateMotorPinWarnings(workspace);
 }
