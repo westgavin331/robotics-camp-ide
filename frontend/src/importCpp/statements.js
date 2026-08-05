@@ -109,22 +109,64 @@ export function scanServoAttachPins(functionBodyNode, ctx) {
   }
 }
 
-function tryServoWrite(node, ctx, scope) {
+// A `<servoVar>.write(<args>)` call, or undefined if this statement isn't one.
+// Shared by the two servo statement shapes below, which differ only in what
+// that single argument looks like.
+function servoWriteCall(node, ctx) {
   const expr = exprOf(node);
   if (!expr || expr.type !== 'call_expression') return undefined;
   const fn = expr.childForFieldName('function');
   if (fn?.type !== 'field_expression' || fn.childForFieldName('field')?.text !== 'write') return undefined;
   const varName = fn.childForFieldName('argument')?.text;
   if (!ctx.servoVars.has(varName)) return undefined;
-  const args = callArgs(expr);
-  if (args.length !== 1) return undefined;
+  return { varName, args: callArgs(expr) };
+}
+
+// Both servo blocks carry the pin on the block itself, so neither can be
+// rebuilt from a .write() whose .attach() this app never found. Returns null
+// (error already recorded) in that case, and for a pin expression that isn't
+// recognizable either.
+function servoPinBlock(varName, node, ctx, scope) {
   const pinNode = ctx.servoAttachPins.get(varName);
   if (!pinNode) {
     ctx.error(node, `"${varName}.write(...)" is used, but this app couldn't find a matching "${varName}.attach(pin)" anywhere to know which pin it's on.`);
-    return FAILED;
+    return null;
   }
-  const pin = recognizeExpression(pinNode, ctx, scope);
-  const angle = recognizeExpression(args[0], ctx, scope);
+  return recognizeExpression(pinNode, ctx, scope);
+}
+
+// io_servo_change: `<servo>.write(constrain(<servo>.read() + <delta>, 0, 180));`
+// -- the one exact shape its generator emits (see generators/arduino/io.js).
+// Tried ahead of tryServoWrite, which matches any single-argument .write() and
+// would otherwise claim this line and then fail on the constrain(...) call,
+// which isn't an expression this app has a block for.
+function tryServoChange(node, ctx, scope) {
+  const call = servoWriteCall(node, ctx);
+  if (!call || call.args.length !== 1) return undefined;
+
+  const constrainCall = unwrapParens(call.args[0]);
+  if (!isCallTo(constrainCall, 'constrain')) return undefined;
+  const bounds = callArgs(constrainCall);
+  if (bounds.length !== 3) return undefined;
+  const isBound = (n, value) => n.type === 'number_literal' && Number(n.text) === value;
+  if (!isBound(bounds[1], 0) || !isBound(bounds[2], 180)) return undefined;
+
+  const sum = unwrapParens(bounds[0]);
+  if (!sum || sum.type !== 'binary_expression' || sum.childForFieldName('operator')?.type !== '+') return undefined;
+  const current = unwrapParens(sum.childForFieldName('left'));
+  if (!isFieldCallTo(current, call.varName, 'read') || callArgs(current).length !== 0) return undefined;
+
+  const pin = servoPinBlock(call.varName, node, ctx, scope);
+  const delta = recognizeExpression(sum.childForFieldName('right'), ctx, scope);
+  if (!pin || !delta) return FAILED;
+  return { count: 1, block: { type: 'io_servo_change', inputs: { ...input('PIN', pin), ...input('DELTA', delta) } } };
+}
+
+function tryServoWrite(node, ctx, scope) {
+  const call = servoWriteCall(node, ctx);
+  if (!call || call.args.length !== 1) return undefined;
+  const pin = servoPinBlock(call.varName, node, ctx, scope);
+  const angle = recognizeExpression(call.args[0], ctx, scope);
   if (!pin || !angle) return FAILED;
   return { count: 1, block: { type: 'io_servo_write', inputs: { ...input('PIN', pin), ...input('ANGLE', angle) } } };
 }
@@ -400,7 +442,7 @@ function recognizeOne(nodes, i, ctx, scope) {
     if (result !== undefined) return result === FAILED ? FAILED : result;
   }
 
-  for (const tryFn of [tryWait, tryServoWrite]) {
+  for (const tryFn of [tryWait, tryServoChange, tryServoWrite]) {
     const result = tryFn(node, ctx, scope);
     if (result !== undefined) return result === FAILED ? FAILED : result;
   }

@@ -68,6 +68,14 @@ export const toolbox = {
         },
         {
           kind: 'block',
+          type: 'io_servo_change',
+          fields: { PIN: '9' },
+          inputs: {
+            DELTA: { shadow: { type: 'math_number', fields: { NUM: 15 } } },
+          },
+        },
+        {
+          kind: 'block',
           type: 'io_wait',
           inputs: { TIME: { shadow: { type: 'math_number', fields: { NUM: 1 } } } },
         },

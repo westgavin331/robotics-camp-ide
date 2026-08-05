@@ -397,6 +397,12 @@ would show a "couldn't reach the save service" message.
 - **Servo**: each literal pin gets its own global `Servo` object, attached
   once in `setup()`. A dynamic pin falls back to one shared object that
   re-attaches on every write — correct, just not as clean.
+  `change servo angle by` needs the servo's current position, and takes it
+  from the library rather than tracking its own copy: `Servo::read()` returns
+  the angle passed to the last `write()` (90° for a servo not written yet),
+  so it emits `servo.write(constrain(servo.read() + delta, 0, 180))`. The
+  clamp is load-bearing — `Servo::write()` treats anything ≥ 544 as a pulse
+  width in microseconds, not an angle.
 - **Distance sensor** (`read distance`) wraps the trigger-pulse + `pulseIn()`
   + cm conversion in a single generated helper function, since it needs
   several statements but is used as a value (an expression can't contain

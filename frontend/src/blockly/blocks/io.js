@@ -70,6 +70,20 @@ Blockly.defineBlocksWithJsonArray([
     tooltip: 'Set a servo (0-180 degrees). Needs the Servo library.',
   },
   {
+    type: 'io_servo_change',
+    message0: 'change servo pin %1 angle by %2',
+    args0: [
+      { type: 'field_dropdown', name: 'PIN', options: DIGITAL_PIN_OPTIONS },
+      { type: 'input_value', name: 'DELTA', check: 'Number' },
+    ],
+    inputsInline: true,
+    previousStatement: null,
+    nextStatement: null,
+    style: 'camp_io_blocks',
+    tooltip:
+      'Move a servo from where it is now by an amount (a negative amount moves it back). The result stays within 0-180.',
+  },
+  {
     type: 'io_wait',
     message0: 'wait %1 %2',
     args0: [

@@ -31,16 +31,41 @@ generator.forBlock['io_pwm_write'] = function (block, gen) {
 };
 
 // One Servo object per pin, attached once in setup(), so multiple servos on
-// different pins each get their own object.
-generator.forBlock['io_servo_write'] = function (block, gen) {
-  const pin = block.getFieldValue('PIN');
-  const angle = gen.valueToCode(block, 'ANGLE', gen.ORDER_NONE) || '90';
+// different pins each get their own object. Shared by both servo blocks:
+// either one on its own is enough to declare and attach that pin's servo.
+function servoObject(pin, gen) {
   gen.addInclude('include_servo', '#include <Servo.h>');
-
   const name = `servo_pin${pin}`;
   gen.definitions_[`servo_${name}`] = `Servo ${name};`;
   gen.addSetup(`servo_attach_${name}`, `${name}.attach(${pin});`);
-  return `${name}.write(${angle});\n`;
+  return name;
+}
+
+generator.forBlock['io_servo_write'] = function (block, gen) {
+  const pin = block.getFieldValue('PIN');
+  const angle = gen.valueToCode(block, 'ANGLE', gen.ORDER_NONE) || '90';
+  return `${servoObject(pin, gen)}.write(${angle});\n`;
+};
+
+// Nothing here tracks the current angle per pin (no equivalent of
+// reservePinMode's bookkeeping), because the Servo object already is that
+// state: read() gives back the value passed to the last write(), and a servo
+// that hasn't been written yet reads as the library's 90-degree default. A
+// mirror variable kept alongside it could only ever drift from the real thing.
+//
+// constrain() isn't just tidiness -- Servo::write() reads any value of 544 or
+// more as a pulse width in microseconds instead of an angle, so a delta that
+// pushed the total that far would stop being interpreted as an angle at all.
+// Being an Arduino core macro, it does expand the delta expression three
+// times, so a delta with side effects (a random, a distance reading) runs
+// three times -- the same tradeoff math_random_int's min()/max() already
+// makes, and the reason to prefer it over a helper function is the same: the
+// generated line stays something a kid can read in View Code.
+generator.forBlock['io_servo_change'] = function (block, gen) {
+  const pin = block.getFieldValue('PIN');
+  const delta = gen.valueToCode(block, 'DELTA', gen.ORDER_ADDITIVE) || '0';
+  const name = servoObject(pin, gen);
+  return `${name}.write(constrain(${name}.read() + ${delta}, 0, 180));\n`;
 };
 
 generator.forBlock['io_wait'] = function (block, gen) {

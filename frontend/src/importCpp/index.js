@@ -11,8 +11,9 @@ export { ImportRejected } from './errors.js';
 // escapes) can't be reliably recognized as text patterns.
 //
 // Supported subset (checked against every block category this app has):
-//   - Basic I/O: digitalWrite/Read, analogRead/Write, servo .attach()+.write(),
-//     wait (delay, both "N seconds" and "N ms" shapes)
+//   - Basic I/O: digitalWrite/Read, analogRead/Write, servo .attach()+.write()
+//     (plus the constrain()-wrapped .read()+delta shape that reads back as
+//     "change servo angle by"), wait (delay, both "N seconds" and "N ms" shapes)
 //   - Sensors: the exact ultrasonic-distance helper function this app's own
 //     generator produces (ping sequence + pulseIn + cm conversion)
 //   - Sound: tone()+delay() note pairs and a REST delay(), only in this
