@@ -21,8 +21,15 @@ export { ImportRejected } from './errors.js';
 //     own invented tempo unit, not something hand-written code would
 //     independently happen to match)
 //   - IR Remote: IrReceiver.begin/decode+resume (fused, matching the one
-//     shape ir_if_received's own generator produces)/decodedIRData access/
-//     repeat-flag check
+//     shape ir_if_received's own generator produces)/decodedIRData access
+//     (command, address, raw)/getProtocolString()/repeat-flag check, plus
+//     the two pieces of
+//     generated scaffolding that read back as block *settings* rather than
+//     blocks: the `const uint16_t irAcceptedAddress` declaration and the
+//     `decodedIRData.address ==` guard it feeds (ir_start_receiver's
+//     accepted-address field), and the whole two-statement decode/timeout
+//     tracker behind "held IR command", whose two globals are claimed as
+//     bookkeeping and whose reads become the reporter block
 //   - Motors: the fixed TB6612FNG drive sequence -- the right motor's
 //     (IN1, IN2, PWM) writes then the left motor's, both at the same speed
 //     and in a recognized direction pairing, optionally followed by a

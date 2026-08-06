@@ -96,6 +96,201 @@ function tryConsumeImplicitLine(node, ctx) {
   return false;
 }
 
+// --- IR remote-address filtering + "held IR command" bookkeeping ---------
+//
+// Both of these are things generators/arduino/ir.js emits *around* the
+// blocks a kid actually placed, so importing them means recognizing the
+// generated scaffolding and turning it back into block settings rather than
+// into blocks of its own:
+//
+//   const uint16_t irAcceptedAddress = 0xEF00;   <- ir_start_receiver's
+//                                                   ADDRESS field
+//   if (IrReceiver.decode()) {
+//     if (IrReceiver.decodedIRData.address == irAcceptedAddress) {  <- ditto
+//       irHeldCommand = IrReceiver.decodedIRData.command;   <- ir_held_command
+//       irLastSignalMs = millis();
+//     }
+//     IrReceiver.resume();
+//   }
+//   if (millis() - irLastSignalMs > 150) {
+//     irHeldCommand = 0;
+//   }
+//
+// Matched by shape rather than by name (the names are just what this app
+// happens to generate), but only in this app's own exact arrangement -- a
+// hand-written variant with a different idle timeout, or extra work inside
+// the decode block, has no block that means the same thing and is better
+// rejected with a line number than silently approximated.
+
+const IR_IDLE_TIMEOUT_MS = 150;
+
+function assignmentParts(stmtNode) {
+  const expr = exprOf(stmtNode);
+  if (!expr || expr.type !== 'assignment_expression') return null;
+  if (expr.childForFieldName('operator')?.text !== '=') return null;
+  const left = expr.childForFieldName('left');
+  if (left?.type !== 'identifier') return null;
+  return { name: left.text, value: unwrapParens(expr.childForFieldName('right')) };
+}
+
+// `const uint16_t <name> = <number>;` at global scope. Returns the name and
+// the literal exactly as written, so 0xEF00 goes back into the ADDRESS field
+// as hex rather than being normalized to 61184.
+export function matchIrAcceptedAddressDeclaration(node) {
+  if (node.type !== 'declaration') return undefined;
+  if (!node.children.some((c) => c.type === 'type_qualifier' && c.text === 'const')) return undefined;
+  if (node.childForFieldName('type')?.text !== 'uint16_t') return undefined;
+  const decl = node.childForFieldName('declarator');
+  if (decl?.type !== 'init_declarator') return undefined;
+  const name = decl.childForFieldName('declarator');
+  const value = decl.childForFieldName('value');
+  if (name?.type !== 'identifier' || value?.type !== 'number_literal') return undefined;
+  return { name: name.text, text: value.text };
+}
+
+// The generated name, used as a fallback signal below.
+const IR_ACCEPTED_ADDRESS_NAME = 'irAcceptedAddress';
+
+// Every name compared against IrReceiver.decodedIRData.address anywhere in
+// the file -- the structural evidence that a `const uint16_t` really is the
+// accepted-address constant and not some unrelated constant of the kid's.
+function namesComparedAgainstIrAddress(root) {
+  const names = new Set();
+  for (const expr of root.descendantsOfType('binary_expression')) {
+    if (expr.childForFieldName('operator')?.type !== '==') continue;
+    const left = unwrapParens(expr.childForFieldName('left'));
+    const right = unwrapParens(expr.childForFieldName('right'));
+    if (left?.text === 'IrReceiver.decodedIRData.address' && right?.type === 'identifier') names.add(right.text);
+  }
+  return names;
+}
+
+export function scanIrAcceptedAddress(root, ctx) {
+  const compared = namesComparedAgainstIrAddress(root);
+  for (const node of root.namedChildren) {
+    const found = matchIrAcceptedAddressDeclaration(node);
+    // `const uint16_t x = 5;` on its own is far too ordinary a declaration to
+    // claim on shape alone -- silently reading an unrelated constant as the
+    // accepted address would leave the robot ignoring its own remote, with
+    // nothing on the workspace to explain why. So it has to be corroborated:
+    // either something actually filters on it, or it carries the exact name
+    // this app generates (which covers a receiver whose address is set but
+    // that nothing reads yet). Anything else falls through to the normal
+    // "unsupported global declaration" error, which is the honest answer --
+    // there's no block for a hand-written constant either way.
+    if (found && (compared.has(found.name) || found.name === IR_ACCEPTED_ADDRESS_NAME)) {
+      ctx.irAcceptedAddress = found;
+      return;
+    }
+  }
+}
+
+// `if (IrReceiver.decodedIRData.address == irAcceptedAddress) { ... }` --
+// returns the guarded statements, or undefined if this isn't that shape.
+// Only recognized once the matching declaration has been seen, so an
+// unrelated comparison against some other variable doesn't quietly count.
+function unwrapIrAddressGuard(node, ctx) {
+  if (!ctx.irAcceptedAddress || node.type !== 'if_statement') return undefined;
+  if (node.childForFieldName('alternative')) return undefined;
+  const cond = conditionValue(node.childForFieldName('condition'));
+  if (!cond || cond.type !== 'binary_expression') return undefined;
+  if (cond.childForFieldName('operator')?.type !== '==') return undefined;
+  if (unwrapParens(cond.childForFieldName('left'))?.text !== 'IrReceiver.decodedIRData.address') return undefined;
+  if (unwrapParens(cond.childForFieldName('right'))?.text !== ctx.irAcceptedAddress.name) return undefined;
+  const body = node.childForFieldName('consequence');
+  if (body?.type !== 'compound_statement') return undefined;
+  return body.namedChildren.filter((n) => n.type !== 'comment');
+}
+
+// The statements a decode() block guards, with the address check (if any)
+// peeled off -- so every caller sees the same list whether filtering is on
+// or not. Returns undefined if the block isn't `{ ...; IrReceiver.resume(); }`.
+function decodeBlockBody(node, ctx) {
+  if (node.type !== 'if_statement' || node.childForFieldName('alternative')) return undefined;
+  const cond = conditionValue(node.childForFieldName('condition'));
+  if (!isFieldCallTo(cond, 'IrReceiver', 'decode') || callArgs(cond).length !== 0) return undefined;
+  const consequence = node.childForFieldName('consequence');
+  if (consequence?.type !== 'compound_statement') return undefined;
+  const statements = consequence.namedChildren.filter((n) => n.type !== 'comment');
+  const lastExpr = statements.length ? exprOf(statements[statements.length - 1]) : null;
+  if (!isFieldCallTo(lastExpr, 'IrReceiver', 'resume') || callArgs(lastExpr).length !== 0) return undefined;
+
+  const rest = statements.slice(0, -1);
+  if (rest.length === 1) {
+    const guarded = unwrapIrAddressGuard(rest[0], ctx);
+    if (guarded) return { body: guarded, filtered: true };
+  }
+  return { body: rest, filtered: false };
+}
+
+// The whole two-statement tracker, at `nodes[i]` and `nodes[i + 1]`.
+export function matchIrHeldCommandTracker(nodes, i, ctx) {
+  const [decodeIf, timeoutIf] = [nodes[i], nodes[i + 1]];
+  if (!decodeIf || !timeoutIf) return undefined;
+
+  const decoded = decodeBlockBody(decodeIf, ctx);
+  if (!decoded || decoded.body.length !== 2) return undefined;
+  const setCommand = assignmentParts(decoded.body[0]);
+  const setTimestamp = assignmentParts(decoded.body[1]);
+  if (!setCommand || setCommand.value?.text !== 'IrReceiver.decodedIRData.command') return undefined;
+  if (!setTimestamp || setTimestamp.value?.type !== 'call_expression') return undefined;
+  if (setTimestamp.value.childForFieldName('function')?.text !== 'millis') return undefined;
+
+  // if (millis() - <last> > 150) { <held> = 0; }
+  if (timeoutIf.type !== 'if_statement' || timeoutIf.childForFieldName('alternative')) return undefined;
+  const timeoutCond = conditionValue(timeoutIf.childForFieldName('condition'));
+  if (!timeoutCond || timeoutCond.type !== 'binary_expression') return undefined;
+  if (timeoutCond.childForFieldName('operator')?.type !== '>') return undefined;
+  const limit = unwrapParens(timeoutCond.childForFieldName('right'));
+  if (limit?.type !== 'number_literal' || Number(limit.text) !== IR_IDLE_TIMEOUT_MS) return undefined;
+  const elapsed = unwrapParens(timeoutCond.childForFieldName('left'));
+  if (!elapsed || elapsed.type !== 'binary_expression') return undefined;
+  if (elapsed.childForFieldName('operator')?.type !== '-') return undefined;
+  const nowCall = unwrapParens(elapsed.childForFieldName('left'));
+  if (nowCall?.type !== 'call_expression' || nowCall.childForFieldName('function')?.text !== 'millis') return undefined;
+  if (unwrapParens(elapsed.childForFieldName('right'))?.text !== setTimestamp.name) return undefined;
+
+  const timeoutBody = timeoutIf.childForFieldName('consequence');
+  if (timeoutBody?.type !== 'compound_statement') return undefined;
+  const timeoutStatements = timeoutBody.namedChildren.filter((n) => n.type !== 'comment');
+  if (timeoutStatements.length !== 1) return undefined;
+  const reset = assignmentParts(timeoutStatements[0]);
+  if (!reset || reset.name !== setCommand.name) return undefined;
+  if (reset.value?.type !== 'number_literal' || Number(reset.value.text) !== 0) return undefined;
+
+  return { heldName: setCommand.name, lastSignalName: setTimestamp.name, filtered: decoded.filtered };
+}
+
+// Pre-scan (program.js calls this before the globals are walked): the two
+// variables the tracker uses are generated bookkeeping, not the kid's
+// variables, so they have to be claimed before recognizeGlobalDeclaration
+// sees their declarations and either reports them as unsupported or turns
+// them into Variables-category blocks.
+export function scanIrHeldCommandTracker(root, ctx) {
+  for (const fnNode of root.namedChildren) {
+    if (fnNode.type !== 'function_definition') continue;
+    const body = fnNode.childForFieldName('body');
+    if (!body) continue;
+    const statements = body.namedChildren.filter((n) => n.type !== 'comment');
+    for (let i = 0; i < statements.length - 1; i += 1) {
+      const found = matchIrHeldCommandTracker(statements, i, ctx);
+      if (found) {
+        ctx.irHeldCommandVars = { held: found.heldName, lastSignal: found.lastSignalName };
+        return;
+      }
+    }
+  }
+}
+
+function tryIrHeldCommandTracker(nodes, i, ctx) {
+  const found = matchIrHeldCommandTracker(nodes, i, ctx);
+  if (!found) return undefined;
+  // Consumed whole and invisibly, like pinMode: the block it stands for is
+  // the `ir_held_command` *reporter*, which is reconstructed wherever the
+  // tracked variable is read (see expressions.js), not here.
+  return { count: 2, block: null };
+}
+
 // --- Servo attach pre-scan (program.js calls this once, globally) --------
 
 export function scanServoAttachPins(functionBodyNode, ctx) {
@@ -422,7 +617,13 @@ function tryIrIfReceived(node, ctx, scope) {
     ctx.error(node, 'this checks IrReceiver.decode() but its last line isn\'t IrReceiver.resume() -- this app\'s IR block always adds that automatically, so the code needs to match that exact shape.');
     return FAILED;
   }
-  const body = recognizeStatementList(bodyStatements.slice(0, -1), ctx, scope);
+  // The address filter isn't a block of its own -- it's ir_start_receiver's
+  // ADDRESS field, already recovered from the declaration this compares
+  // against -- so the guard is peeled off and only its contents become the
+  // "if IR signal received" body.
+  const rest = bodyStatements.slice(0, -1);
+  const guarded = rest.length === 1 ? unwrapIrAddressGuard(rest[0], ctx) : undefined;
+  const body = recognizeStatementList(guarded ?? rest, ctx, scope);
   if (body === FAILED) return FAILED;
   return { count: 1, block: { type: 'ir_if_received', inputs: body ? { DO: { block: body } } : {} } };
 }
@@ -437,7 +638,10 @@ function recognizeOne(nodes, i, ctx, scope) {
   if (consumed) return { count: 1, block: null };
   if (tryServoAttachLine(node, ctx)) return { count: 1, block: null };
 
-  for (const tryFn of [tryMotor, trySoundPlayNote, tryIrStartReceiver]) {
+  // Ahead of tryIrIfReceived below, which would otherwise claim the
+  // tracker's own `if (IrReceiver.decode())` block as an "if IR signal
+  // received" block and leave its assignments as orphaned variable writes.
+  for (const tryFn of [tryMotor, trySoundPlayNote, tryIrStartReceiver, tryIrHeldCommandTracker]) {
     const result = tryFn(nodes, i, ctx, scope);
     if (result !== undefined) return result === FAILED ? FAILED : result;
   }
@@ -467,7 +671,10 @@ function tryIrStartReceiver(nodes, i, ctx, scope) {
   if (args.length !== 2 || args[1].text !== 'ENABLE_LED_FEEDBACK') return undefined;
   const pin = recognizeExpression(args[0], ctx, scope);
   if (!pin) return FAILED;
-  return { count: 1, block: { type: 'ir_start_receiver', inputs: input('PIN', pin) } };
+  // No declaration means no filtering, which is the field's own default --
+  // so an older sketch with no address in it reads back unchanged.
+  const fields = ctx.irAcceptedAddress ? { fields: { ADDRESS: ctx.irAcceptedAddress.text } } : {};
+  return { count: 1, block: { type: 'ir_start_receiver', ...fields, inputs: input('PIN', pin) } };
 }
 
 // --- statements with exactly one shape (no lookahead needed) -------------

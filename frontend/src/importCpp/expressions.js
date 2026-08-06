@@ -59,6 +59,10 @@ function lookupIdentifier(node, ctx, scope) {
   // itself gets a message of its own rather than the not-a-variable one below.
   const asList = tryListIdentifier(node, ctx);
   if (asList !== undefined) return asList.block;
+  // Reading the variable ir_held_command's generated bookkeeping maintains IS
+  // the reporter block -- the tracker that keeps it up to date was consumed
+  // separately (see statements.js).
+  if (ctx.irHeldCommandVars?.held === name) return { type: 'ir_held_command' };
   if (ctx.variables.has(name)) {
     return { type: 'variables_get', fields: { VAR: { id: ctx.variables.get(name).id } } };
   }
@@ -109,6 +113,12 @@ function recognizeCall(node, ctx, scope) {
   const argsNode = node.childForFieldName('arguments');
   const args = argsNode ? argsNode.namedChildren : [];
 
+  // The one method call that's a plain reporter (ir_protocol_name) -- checked
+  // before the identifier-only guard below, which every other call in this
+  // app satisfies.
+  if (fnNode.type === 'field_expression' && fnNode.text === 'IrReceiver.getProtocolString' && args.length === 0) {
+    return { type: 'ir_protocol_name' };
+  }
   if (fnNode.type !== 'identifier') {
     ctx.error(node, `this app doesn't have a block for "${node.text}".`);
     return null;
@@ -255,6 +265,7 @@ export function recognizeExpression(rawNode, ctx, scope = null) {
     }
     case 'field_expression': {
       if (node.text === 'IrReceiver.decodedIRData.command') return { type: 'ir_get_code', fields: { FORMAT: 'COMMAND' } };
+      if (node.text === 'IrReceiver.decodedIRData.address') return { type: 'ir_get_code', fields: { FORMAT: 'ADDRESS' } };
       if (node.text === 'IrReceiver.decodedIRData.decodedRawData') return { type: 'ir_get_code', fields: { FORMAT: 'RAW' } };
       ctx.error(node, `this app doesn't have a block for "${node.text}".`);
       return null;

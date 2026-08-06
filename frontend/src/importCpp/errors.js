@@ -57,6 +57,15 @@ export class ImportContext {
     // unsupported size). Kept so the generic "unsupported global declaration"
     // pass doesn't report the same declaration a second, vaguer time.
     this.rejectedListNames = new Set();
+    // {name, text} for `const uint16_t irAcceptedAddress = 0xEF00;` -- the
+    // remote address ir_start_receiver filters on (see statements.js). `text`
+    // is the literal as written, so it goes back into the ADDRESS field in
+    // whichever base the sketch used. Null when the sketch does no filtering.
+    this.irAcceptedAddress = null;
+    // {held, lastSignal} -- the two globals ir_held_command's generated
+    // bookkeeping uses. Claimed by a pre-scan so they're never mistaken for
+    // the kid's own variables; reading `held` reconstructs the reporter block.
+    this.irHeldCommandVars = null;
     this._varCounter = 0;
     this._listCounter = 0;
   }

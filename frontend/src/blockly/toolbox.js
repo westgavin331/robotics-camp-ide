@@ -120,6 +120,7 @@ export const toolbox = {
         },
         { kind: 'block', type: 'ir_if_received' },
         { kind: 'block', type: 'ir_get_code' },
+        { kind: 'block', type: 'ir_protocol_name' },
         { kind: 'block', type: 'ir_repeat_received' },
         { kind: 'block', type: 'ir_held_command' },
       ],

@@ -33,6 +33,11 @@ const RESERVED_WORDS_LIST = [
   'Serial', 'random', 'randomSeed', 'constrain', 'min', 'max', 'abs', 'sqrt',
   'pow', 'map', 'tone', 'noTone', 'pulseIn', 'attachInterrupt',
   'detachInterrupt',
+  // Globals the IR blocks declare behind the scenes (generators/arduino/ir.js).
+  // A kid naming a variable `irHeldCommand` would otherwise get a second
+  // declaration of the same name and a sketch that doesn't compile -- these
+  // are reserved so Blockly.Names renames the kid's variable instead.
+  'irHeldCommand', 'irLastSignalMs', 'irAcceptedAddress',
 ];
 export { RESERVED_WORDS_LIST as ARDUINO_RESERVED_WORDS };
 

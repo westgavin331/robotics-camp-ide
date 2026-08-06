@@ -1,4 +1,11 @@
-import { recognizeStatementList, FAILED, scanServoAttachPins } from './statements.js';
+import {
+  recognizeStatementList,
+  FAILED,
+  scanServoAttachPins,
+  scanIrAcceptedAddress,
+  scanIrHeldCommandTracker,
+  matchIrAcceptedAddressDeclaration,
+} from './statements.js';
 import { createNameDeduper } from './identifiers.js';
 import { unwrapParens } from './cst.js';
 import {
@@ -26,6 +33,21 @@ function recognizeGlobalDeclaration(node, ctx) {
   // as a pair by scanListDeclarations below -- nothing more to do here, and
   // neither half is a plain variable.
   if (isListDeclaration(node, ctx)) return;
+
+  // Likewise for the three globals the IR blocks generate: the accepted
+  // address is ir_start_receiver's ADDRESS field and the two tracker
+  // variables are ir_held_command's private bookkeeping. All were claimed by
+  // the pre-scans in buildProjectFromCpp -- none is a kid-facing variable.
+  if (matchIrAcceptedAddressDeclaration(node) && declNode?.childForFieldName('declarator')?.text === ctx.irAcceptedAddress?.name) {
+    return;
+  }
+  if (ctx.irHeldCommandVars) {
+    const declaredName = declNode?.type === 'init_declarator'
+      ? declNode.childForFieldName('declarator')?.text
+      : declNode?.text;
+    const { held, lastSignal } = ctx.irHeldCommandVars;
+    if (declaredName === held || declaredName === lastSignal) return;
+  }
 
   if (typeText === 'Servo' && declNode?.type === 'identifier') {
     ctx.servoVars.add(declNode.text);
@@ -187,6 +209,12 @@ export function buildProjectFromCpp(tree, ctx) {
   // anything else looks at the globals, since neither half means anything on
   // its own and they can appear in either order (see lists.js).
   scanListDeclarations(root, ctx);
+
+  // Same idea for the IR blocks' generated globals, and in this order: the
+  // held-command tracker's decode block can contain the address guard, which
+  // is only recognizable once the declaration it compares against is known.
+  scanIrAcceptedAddress(root, ctx);
+  scanIrHeldCommandTracker(root, ctx);
 
   for (const node of root.namedChildren) {
     if (node.type === 'comment' || node.type === 'preproc_include') continue;
